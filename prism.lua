@@ -29,6 +29,8 @@ function init()
   params:set_action("rec thresh",update_parameters)
   params:add_taper("debounce time","debounce time",10,500,200,0,"ms")
   params:set_action("debounce time",update_parameters)
+  params:add_taper("min recorded","min recorded",10,1000,60,0,"ms")
+  params:set_action("min recorded",update_parameters)
   params:read(_path.data..'prism/'.."prism.pset")
   
   for i=1,6 do
@@ -138,32 +140,39 @@ function update_main()
     redraw()
   end
   for i=2,6 do
-    if s.v[i].midi>0 then
-      -- make sure its bounded by recorded material
-      if s.loop_end~=s.v[i].loop_end then
-        softcut.loop_end(i,s.loop_end)
-      end
-      
-      -- modulate the voice's rate to match upcoming pitch
-      next_position=round_to_nearest(s.v[i].position+params:get("resolution")/1000,params:get("resolution")/1000)
-      if s.freqs[next_position]==nil then
-        next_position=round_to_nearest(s.v[i].position+0*params:get("resolution")/1000,params:get("resolution")/1000)
-      end
-      if s.freqs[next_position]==nil then
-        next_position=round_to_nearest(s.v[i].position-params:get("resolution")/1000,params:get("resolution")/1000)
-      end
+    -- skip if not playing
+    if s.v[i].midi==0 then goto continue end
+    
+    -- make sure there is a little bit of recorded material
+    if s.loop_end<params:get("min recorded")/1000 then goto continue end
+    
+    -- make sure its bounded by recorded material
+    if s.loop_end~=s.v[i].loop_end then
+      softcut.loop_end(i,s.loop_end)
+    end
+    
+    -- modulate the voice's rate to match upcoming pitch
+    -- find the closest pitch
+    for j=2,-1,-1 do
+      next_position=round_to_nearest(s.v[i].position+j*params:get("resolution")/1000,params:get("resolution")/1000)
       if s.freqs[next_position]~=nil then
-        softcut.rate(i,s.v[i].freq/s.freqs[next_position])
-      end
-      
-      -- initialize the voice playing
-      if not s.v[i].started then
-        s.v[i].started=true
-        softcut.position(i,s.v[1].position)
-        softcut.play(i,1)
-        softcut.level(i,1)
+        break
       end
     end
+    
+    if s.freqs[next_position]==nil then goto continue end
+    
+    -- update the rate to match correclty modulate upcoming pitch
+    softcut.rate(i,s.v[i].freq/s.freqs[next_position])
+    
+    -- initialize the voice playing
+    if not s.v[i].started then
+      s.v[i].started=true
+      softcut.position(i,util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end))
+      softcut.play(i,1)
+      softcut.level(i,1)
+    end
+    ::continue::
   end
 end
 
@@ -171,6 +180,8 @@ function update_amp(val)
   -- toggle recording on with incoming amplitude
   -- toggle recording off with silence
   if val>params:get("rec thresh")/1000 then
+    -- reset silence time
+    s.silence_time=0
     if not s.recording then
       print("init recording")
       softcut.position(1,0)
@@ -179,19 +190,26 @@ function update_amp(val)
       softcut.loop_end(300)
       s.freqs={}
       s.recording=true
-      s.silence_time=0
+      s.loop_end=1
+      -- reset positions of all current notes
+      for i=2,6 do
+        softcut.position(i,0)
+        softcut.level(i,0)
+        s.v[i].started=false
+      end
     end
-  else
+  elseif s.recording then
+    -- not above threshold, should add to silence time
+    -- to eventually trigger stop recording
     s.silence_time+=params:get("resolution")/1000
-  end
-  -- add parameter for silence time?
-  if s.recording and s.silence_time>params:get("debounce time")/1000 then
-    print("stop recording")
-    s.recording=false
-    softcut.rec(1,0)
-    softcut.play(1,0)
-    softcut.position(1,0)
-    s.loop_end=s.v[1].position-(params:get("debounce time")/1000)
+    if s.silence_time>params:get("debounce time")/1000 then
+      print("stop recording")
+      s.recording=false
+      softcut.rec(1,0)
+      softcut.play(1,0)
+      softcut.position(1,0)
+      s.loop_end=s.v[1].position-(params:get("debounce time")/1000)
+    end
   end
 end
 
