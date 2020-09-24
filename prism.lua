@@ -121,7 +121,8 @@ function update_positions(i,x)
 end
 
 function update_freq(f)
-  if s.recording then
+  -- ignore frequencies below 30 hz
+  if s.recording and f<30 then
     current_position=round_to_nearest(s.v[1].position,params:get("resolution")/1000)
     if s.freqs[current_position]==nil then
       s.freqs[current_position]=(s.freqs[current_position]+f)/2
@@ -142,6 +143,7 @@ function update_main()
       if s.loop_end~=s.v[i].loop_end then
         softcut.loop_end(i,s.loop_end)
       end
+      
       -- modulate the voice's rate to match upcoming pitch
       next_position=round_to_nearest(s.v[i].position+params:get("resolution")/1000,params:get("resolution")/1000)
       if s.freqs[next_position]==nil then
@@ -153,6 +155,14 @@ function update_main()
       if s.freqs[next_position]~=nil then
         softcut.rate(i,s.v[i].freq/s.freqs[next_position])
       end
+      
+      -- initialize the voice playing
+      if not s.v[i].started then
+        s.v[i].started=true
+        softcut.position(i,s.v[1].position)
+        softcut.play(i,1)
+        softcut.level(i,1)
+      end
     end
   end
 end
@@ -162,6 +172,7 @@ function update_amp(val)
   -- toggle recording off with silence
   if val>params:get("rec thresh")/1000 then
     if not s.recording then
+      print("init recording")
       softcut.position(1,0)
       softcut.rec(1,1)
       softcut.play(1,1)
@@ -175,6 +186,7 @@ function update_amp(val)
   end
   -- add parameter for silence time?
   if s.recording and s.silence_time>params:get("debounce time")/1000 then
+    print("stop recording")
     s.recording=false
     softcut.rec(1,0)
     softcut.play(1,0)
@@ -186,16 +198,14 @@ end
 function update_midi(data)
   msg=midi.to_msg(data)
   if msg.type=='note_on' then
-    print(msg.note,msg.vel/127.0)
     -- find first available voice and turn it on
     for i=2,6 do
       if s.v[i].midi==0 then
+        print("voice "..i.." "..msg.note.." on")
         s.v[i].midi=msg.note
         s.v[i].freq=midi_to_hz(msg.note)
         -- move to current position of recording
         s.v[i].position=s.v[1].position
-        softcut.position(i,s.v[1].position)
-        softcut.play(i,1)
         break
       end
     end
@@ -203,11 +213,14 @@ function update_midi(data)
     -- turn off any voices on that note
     for i=2,6 do
       if s.v[i].midi==msg.note then
+        print("voice "..i.." "..msg.note.." off")
         s.v[i].midi=0
         s.v[i].freq=0
+        s.v[i].started=false
         softcut.play(i,0)
         softcut.rate(i,0)
         softcut.position(i,0)
+        softcut.level(i,0)
       end
     end
   end
