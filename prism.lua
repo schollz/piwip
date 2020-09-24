@@ -34,6 +34,7 @@ function init()
     s.v[i].position=0
     s.v[i].midi=0 -- target midi note
     s.v[i].freq=0 -- current frequency
+    s.v[i].loop_end=0
   end
   
   -- initialize timers
@@ -53,6 +54,11 @@ function init()
     update_freq(value)
   end)
   pitch_poll_l:start()
+  
+  local pitch_poll_r=poll.set("pitch_poll_r",function(value)
+    update_freq(value)
+  end)
+  pitch_poll_r:start()
   
   -- amplitude poll
   p_amp_in=poll.set("amp_in_l")
@@ -105,20 +111,21 @@ function update_parameters(x)
 end
 
 function update_positions(i,x)
-  -- make sure to check to see if current position
-  -- of voice 1 went back to 0 and, if so,
-  -- reset all other loop starts
-  if i==1 and x<s.v[i].position then
-    for j=2,6 do
-      softcut.loop_end(j,x)
-    end
+  -- keep track of bounds of recording
+  if i==1 and recording then
+    s.loop_end=x
   end
   s.v[i].position=x
 end
 
 function update_freq(f)
   if s.recording then
-    s.freqs[round_to_nearest(s.v[1].position,params:get("resolution")/1000)]=f
+    current_position=round_to_nearest(s.v[1].position,params:get("resolution")/1000)
+    if s.freqs[current_position]==nil then
+      s.freqs[current_position]=(s.freqs[current_position]+f)/2
+    else
+      s.freqs[current_position]=f
+    end
   end
 end
 
@@ -127,17 +134,22 @@ function update_main()
   if s.update_main then
     redraw()
   end
-  for i=1,6 do
+  for i=2,6 do
     if s.v[i].midi>0 then
+      -- make sure its bounded by recorded material
+      if s.loop_end~=s.v[i].loop_end then
+        softcut.loop_end(i,s.loop_end)
+      end
       -- modulate the voice's rate to match upcoming pitch
       next_position=round_to_nearest(s.v[i].position+params:get("resolution")/1000,params:get("resolution")/1000)
+      if s.freqs[next_position]==nil then
+        next_position=round_to_nearest(s.v[i].position+0*params:get("resolution")/1000,params:get("resolution")/1000)
+      end
+      if s.freqs[next_position]==nil then
+        next_position=round_to_nearest(s.v[i].position-params:get("resolution")/1000,params:get("resolution")/1000)
+      end
       if s.freqs[next_position]~=nil then
-        next_freq=s.freqs[next_position]
-        target_freq=s.v[i].freq
-        softcut.rate(i,target_freq/next_freq)
-        if s.recording then
-          softcut.loop_end(i,s.v[1].position)
-        end
+        softcut.rate(i,s.v[i].freq/s.freqs[next_position])
       end
     end
   end
@@ -147,8 +159,10 @@ function update_amp(val)
   -- toggle recording on with incoming amplitude
   -- toggle recording off with silence
   if val>params:get("rec thresh")/1000 then
+    softcut.position(1,0)
     softcut.rec(1,1)
     softcut.play(1,1)
+    softcut.loop_end(300)
     s.freqs={}
     s.recording=true
   else
@@ -160,7 +174,7 @@ function update_amp(val)
     softcut.rec(1,0)
     softcut.play(1,0)
     softcut.position(1,0)
-    s.loop_end=s.v[1].position
+    s.loop_end=s.v[1].position-0.2
   end
 end
 
@@ -188,6 +202,7 @@ function update_midi(data)
         s.v[i].freq=0
         softcut.play(i,0)
         softcut.rate(i,0)
+        softcut.position(i,0)
       end
     end
   end
