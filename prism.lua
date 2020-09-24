@@ -9,14 +9,14 @@
 --
 -- ?
 
+-- state variable
 s={
-  update_ui=false,
-  current_time=0,
   v={},-- voices to be initialized in init()
-  freqs={},
-  recording=false,
-  loop_end=0,
-  silence_time=0,
+  freqs={},-- stores frequency information
+  update_ui=false,-- toggles redraw
+  recording=false,-- recording state
+  loop_end=0,-- amount recorded into buffer
+  silence_time=0,-- amount of silence (during recording)
 }
 
 function init()
@@ -53,12 +53,11 @@ function init()
   softcut.event_phase(update_positions)
   softcut.poll_start_phase()
   
-  -- frequency poll
+  -- frequency poll (average l+r channels)
   local pitch_poll_l=poll.set("pitch_in_l",function(value)
     update_freq(value)
   end)
   pitch_poll_l:start()
-  
   local pitch_poll_r=poll.set("pitch_poll_r",function(value)
     update_freq(value)
   end)
@@ -135,10 +134,10 @@ function update_freq(f)
 end
 
 function update_main()
-  s.current_time=s.current_time+params:get("resolution")/1000
   if s.update_main then
     redraw()
   end
+  -- check active voices and match their pitch using rate
   for i=2,6 do
     -- skip if not playing
     if s.v[i].midi==0 then goto continue end
@@ -217,6 +216,7 @@ function update_midi(data)
   msg=midi.to_msg(data)
   if msg.type=='note_on' then
     -- find first available voice and turn it on
+    -- it will be initialized in update_main
     for i=2,6 do
       if s.v[i].midi==0 then
         print("voice "..i.." "..msg.note.." on")
