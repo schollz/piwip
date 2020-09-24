@@ -15,6 +15,7 @@ s={
   v={},-- voices to be initialized in init()
   freqs={},
   recording=false,
+  loop_end=0,
 }
 
 function init()
@@ -23,6 +24,8 @@ function init()
   params:set_action("slew rate",update_parameters)
   params:add_taper("resolution","resolution",10,200,50,0,"ms")
   params:set_action("resolution",update_parameters)
+  params:add_control("rec thresh","rec thresh",controlspec.new(1,100,'exp',1,10,'amp/1k'))
+  params:set_action("rec thresh",update_parameters)
   params:read(_path.data..'prism/'.."prism.pset")
   
   for i=1,6 do
@@ -54,7 +57,18 @@ function init()
   p_amp_in=poll.set("amp_in_l")
   p_amp_in.time=params:get("resolution")/1000
   p_amp_in.callback=function(val)
-    -- TODO: toggle recording
+    -- toggle recording
+    if val>params:get("rec thresh")/1000 then
+      softcut.rec(1,1)
+      softcut.play(1,1)
+      s.recording=true
+    else
+      s.recording=false
+      softcut.rec(1,0)
+      softcut.play(1,0)
+      softcut.position(1,0)
+      s.loop_end=s.v[1].position
+    end
   end
   p_amp_in:start()
   
@@ -133,8 +147,10 @@ function update_main()
       if s.freqs[next_position]~=nil then
         next_freq=s.freqs[next_position]
         target_freq=s.v[i].freq
-        softcut.loop_end(i,s.v[1].position)
         softcut.rate(i,target_freq/next_freq)
+        if s.recording then
+          softcut.loop_end(i,s.v[1].position)
+        end
       end
     end
   end
@@ -145,21 +161,20 @@ function update_midi(data)
   if msg.type=='note_on' then
     print(msg.note,msg.vel/127.0)
     -- find first available voice and turn it on
-    for i=1,6 do
+    for i=2,6 do
       if s.v[i].midi==0 then
         s.v[i].midi=msg.note
         s.v[i].freq=midi_to_hz(msg.note)
         -- move to current position of recording
         s.v[i].position=s.v[1].position
-        softcut.loop_start(i,s.v[1].position)
-        softcut.position(i,s.v[i].position)
+        softcut.position(i,s.v[1].position)
         softcut.play(i,1)
         break
       end
     end
   elseif msg.type=='note_off' then
     -- turn off any voices on that note
-    for i=1,6 do
+    for i=2,6 do
       if s.v[i].midi==msg.note then
         s.v[i].midi=0
         s.v[i].freq=0
