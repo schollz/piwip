@@ -1,6 +1,6 @@
-## pyiwpyi
+## piwip
 
-play your instrument while playing your instrument.
+plays instruments while instruments plays
 
 ![Image](https://user-images.githubusercontent.com/6550035/91628872-c47b8c80-e978-11ea-9d07-df79ef337a0f.gif)
 
