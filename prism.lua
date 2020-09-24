@@ -61,6 +61,7 @@ function init()
     if val>params:get("rec thresh")/1000 then
       softcut.rec(1,1)
       softcut.play(1,1)
+      s.freqs={}
       s.recording=true
     else
       s.recording=false
@@ -92,11 +93,11 @@ function init()
     end
     softcut.pan(i,0)
     softcut.play(i,0)
+    softcut.rec(i,0)
     softcut.rate(i,1)
     softcut.loop_start(i,0)
-    softcut.loop_end(i,120)
+    softcut.loop_end(i,300)
     softcut.loop(i,1)
-    softcut.rec(i,0)
     
     softcut.fade_time(i,0.2)
     softcut.level_slew_time(i,params:get("resolution")/1000)
@@ -122,7 +123,6 @@ function update_positions(i,x)
   -- reset all other loop starts
   if i==1 and x<s.v[i].position then
     for j=2,6 do
-      softcut.loop_start(j,0)
       softcut.loop_end(j,x)
     end
   end
