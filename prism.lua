@@ -16,6 +16,7 @@ s={
   freqs={},
   recording=false,
   loop_end=0,
+  silence_time=0,
 }
 
 function init()
@@ -56,21 +57,7 @@ function init()
   -- amplitude poll
   p_amp_in=poll.set("amp_in_l")
   p_amp_in.time=params:get("resolution")/1000
-  p_amp_in.callback=function(val)
-    -- toggle recording
-    if val>params:get("rec thresh")/1000 then
-      softcut.rec(1,1)
-      softcut.play(1,1)
-      s.freqs={}
-      s.recording=true
-    else
-      s.recording=false
-      softcut.rec(1,0)
-      softcut.play(1,0)
-      softcut.position(1,0)
-      s.loop_end=s.v[1].position
-    end
-  end
+  p_amp_in.callback=update_amp
   p_amp_in:start()
   
   -- watch midi
@@ -153,6 +140,27 @@ function update_main()
         end
       end
     end
+  end
+end
+
+function update_amp(val)
+  -- toggle recording on with incoming amplitude
+  -- toggle recording off with silence
+  if val>params:get("rec thresh")/1000 then
+    softcut.rec(1,1)
+    softcut.play(1,1)
+    s.freqs={}
+    s.recording=true
+  else
+    silence_time+=params:get("resolution")/1000
+  end
+  -- TODO: add parameter for silence time?
+  if silence_time>0.2 then
+    s.recording=false
+    softcut.rec(1,0)
+    softcut.play(1,0)
+    softcut.position(1,0)
+    s.loop_end=s.v[1].position
   end
 end
 
