@@ -103,6 +103,15 @@ function update_parameters(x)
 end
 
 function update_positions(i,x)
+  -- make sure to check to see if current position
+  -- of voice 1 went back to 0 and, if so,
+  -- reset all other loop starts
+  if i==1 and x<s.v[i].position then
+    for j=2,6 do
+      softcut.loop_start(j,0)
+      softcut.loop_end(j,x)
+    end
+  end
   s.v[i].position=x
 end
 
@@ -120,14 +129,11 @@ function update_main()
   for i=1,6 do
     if s.v[i].midi>0 then
       -- modulate the voice's rate to match upcoming pitch
-      -- if midi is higher then pitch, then find the next octave down
       next_position=round_to_nearest(s.v[i].position+params:get("resolution")/1000,params:get("resolution")/1000)
       if s.freqs[next_position]~=nil then
         next_freq=s.freqs[next_position]
         target_freq=s.v[i].freq
-        while target_freq>next_freq do
-          target_freq=target_freq/2
-        end
+        softcut.loop_end(i,s.v[1].position)
         softcut.rate(i,target_freq/next_freq)
       end
     end
@@ -145,6 +151,7 @@ function update_midi(data)
         s.v[i].freq=midi_to_hz(msg.note)
         -- move to current position of recording
         s.v[i].position=s.v[1].position
+        softcut.loop_start(i,s.v[1].position)
         softcut.position(i,s.v[i].position)
         softcut.play(i,1)
         break
@@ -157,6 +164,7 @@ function update_midi(data)
         s.v[i].midi=0
         s.v[i].freq=0
         softcut.play(i,0)
+        softcut.rate(i,0)
       end
     end
   end
