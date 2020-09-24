@@ -222,8 +222,6 @@ function update_midi(data)
         print("voice "..i.." "..msg.note.." on")
         s.v[i].midi=msg.note
         s.v[i].freq=midi_to_hz(msg.note)
-        -- move to current position of recording
-        s.v[i].position=s.v[1].position
         break
       end
     end
