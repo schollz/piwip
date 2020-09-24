@@ -170,7 +170,7 @@ function update_amp(val)
   else
     silence_time+=params:get("resolution")/1000
   end
-  -- TODO: add parameter for silence time?
+  -- add parameter for silence time?
   if silence_time>params:get("debounce time")/1000 then
     s.recording=false
     softcut.rec(1,0)
