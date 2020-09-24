@@ -1,10 +1,11 @@
-## oooooo
+## prism
 
-varispeed tape synthesizer.
+live sampler.
 
 ![Image](https://user-images.githubusercontent.com/6550035/91628872-c47b8c80-e978-11ea-9d07-df79ef337a0f.gif)
 
-play your monophonic instrument. then play notes or chords on a midi keyboard to modulate the speed of the recorded instrument to match those pitches. like autotune, but without the time-stretching and granulation.
+play re-pitched samples of an instrument while playing an instrument.
+
 
 future directions:
 

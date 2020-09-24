@@ -161,17 +161,20 @@ function update_amp(val)
   -- toggle recording on with incoming amplitude
   -- toggle recording off with silence
   if val>params:get("rec thresh")/1000 then
-    softcut.position(1,0)
-    softcut.rec(1,1)
-    softcut.play(1,1)
-    softcut.loop_end(300)
-    s.freqs={}
-    s.recording=true
+    if not s.recording then
+      softcut.position(1,0)
+      softcut.rec(1,1)
+      softcut.play(1,1)
+      softcut.loop_end(300)
+      s.freqs={}
+      s.recording=true
+      s.silence_time=0
+    end
   else
-    silence_time+=params:get("resolution")/1000
+    s.silence_time+=params:get("resolution")/1000
   end
   -- add parameter for silence time?
-  if silence_time>params:get("debounce time")/1000 then
+  if s.recording and s.silence_time>params:get("debounce time")/1000 then
     s.recording=false
     softcut.rec(1,0)
     softcut.play(1,0)
