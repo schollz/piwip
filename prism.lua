@@ -27,6 +27,8 @@ function init()
   params:set_action("resolution",update_parameters)
   params:add_control("rec thresh","rec thresh",controlspec.new(1,100,'exp',1,10,'amp/1k'))
   params:set_action("rec thresh",update_parameters)
+  params:add_taper("debounce time","debounce time",10,500,200,0,"ms")
+  params:set_action("debounce time",update_parameters)
   params:read(_path.data..'prism/'.."prism.pset")
   
   for i=1,6 do
@@ -169,12 +171,12 @@ function update_amp(val)
     silence_time+=params:get("resolution")/1000
   end
   -- TODO: add parameter for silence time?
-  if silence_time>0.2 then
+  if silence_time>params:get("debounce time")/1000 then
     s.recording=false
     softcut.rec(1,0)
     softcut.play(1,0)
     softcut.position(1,0)
-    s.loop_end=s.v[1].position-0.2
+    s.loop_end=s.v[1].position-(params:get("debounce time")/1000)
   end
 end
 
