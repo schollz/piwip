@@ -116,7 +116,7 @@ end
 
 function update_positions(i,x)
   -- keep track of bounds of recording
-  if i==1 and recording then
+  if i==1 and s.recording then
     s.loop_end=x
   end
   s.v[i].position=x
