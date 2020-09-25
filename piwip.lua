@@ -16,6 +16,7 @@ s={
   amps={},--store amp information
   update_ui=false,-- toggles redraw
   recording=false,-- recording state
+  force_recording=false,
   loop_end=0,-- amount recorded into buffer
   loop_bias={0,0},-- bias the start/end of loop
   silence_time=0,-- amount of silence (during recording)
@@ -25,6 +26,7 @@ s={
   mode_name="",
   shift=false,
   monitor=false,
+  message="",
 }
 
 function init()
@@ -255,11 +257,11 @@ function rec_start()
   clock.run(function()
     if params:get("vol pinch")>0 then
       for j=1,10 do
-        softcut.rec(i,j*0.1)
+        softcut.rec(1,j*0.1)
         clock.sleep(params:get("vol pinch")/10/1000)
       end
     end
-    softcut.rec(i,1)
+    softcut.rec(1,1)
   end)
 end
 
@@ -270,11 +272,11 @@ function rec_stop()
   clock.run(function()
     if params:get("vol pinch")>0 then
       for j=1,10 do
-        softcut.rec(i,(10-j)*0.1)
+        softcut.rec(1,(10-j)*0.1)
         clock.sleep(params:get("vol pinch")/10/1000)
       end
     end
-    softcut.rec(i,0)
+    softcut.rec(1,0)
     softcut.play(1,0)
     softcut.position(1,0)
     s.loop_end=s.v[1].position-(params:get("silence to stop")/1000)
@@ -297,7 +299,7 @@ function update_amp(val)
     if not s.recording and s.armed then
       rec_start()
     end
-  elseif s.recording then
+  elseif s.recording and not s.force_recording then
     -- not above threshold, should add to silence time
     -- to eventually trigger stop recording
     s.silence_time=s.silence_time+params:get("resolution")/1000
@@ -353,14 +355,17 @@ function key(n,z)
     -- toggle monitor
     s.monitor=not s.monitor
     if s.monitor then
+      show_message("monitor enabled")
       audio.level_monitor(1)
     else
+      show_message("monitor disabled")
       audio.level_monitor(0)
     end
   elseif not s.shift and n==2 and z==1 then
     s.armed=not s.armed
   elseif not s.shift and n==3 and z==1 then
     s.recording=not s.recording
+    s.force_recording=s.recording
     if s.recording then
       rec_start()
     else
@@ -375,7 +380,7 @@ function enc(n,d)
     if s.mode==0 then
       params:write(_path.data..'piwip/'.."piwip_temp.pset")
     end
-    s.mode=utils.clamp(s.mode+sign(d),0,4)
+    s.mode=util.clamp(s.mode+sign(d),0,4)
     if s.mode==0 then
       s.mode_name=""
       params:read(_path.data..'piwip/'.."piwip_temp.pset")
@@ -409,9 +414,9 @@ function enc(n,d)
       params:set("notes start at 0",1)
     end
   elseif n==2 then
-    s.loop_bias[1]=util.clamp(s.loop_bias[1]+d,0,s.loop_end-s.loop_bias[2])
+    s.loop_bias[1]=util.clamp(s.loop_bias[1]+d/100,0,s.loop_end-s.loop_bias[2])
   elseif n==3 then
-    s.loop_bias[2]=util.clamp(s.loop_bias[2]+d,s.loop_bias[1],s.loop_end)
+    s.loop_bias[2]=util.clamp(s.loop_bias[2]-d/100,s.loop_bias[1],s.loop_end)
   end
   s.update_ui=true
 end
@@ -451,6 +456,20 @@ function redraw()
     screen.text_center("instruments play")
   else
     draw_waveform()
+  end
+  
+  if s.message~="" then
+    screen.level(0)
+    x=64
+    y=28
+    w=string.len(s.message)*6
+    screen.rect(x-w/2,y,w,10)
+    screen.fill()
+    screen.level(15)
+    screen.rect(x-w/2,y,w,10)
+    screen.stroke()
+    screen.move(x,y+7)
+    screen.text_center(s.message)
   end
   screen.update()
 end
@@ -609,3 +628,12 @@ function median(t)
   end
 end
 
+function show_message(message)
+  clock.run(function()
+    s.message=message
+    redraw()
+    clock.sleep(0.5)
+    s.message=""
+    redraw()
+  end)
+end
