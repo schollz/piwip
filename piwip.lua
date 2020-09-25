@@ -37,6 +37,8 @@ function init()
   params:set_action("min recorded",update_parameters)
   params:add_option("notes reset sample","notes reset sample",{"no","yes"},1)
   params:set_action("notes reset sample",update_parameters)
+  params:add_option("keep armed","keep armed",{"no","yes"},1)
+  params:set_action("keep armed",update_parameters)
   params:add_option("playback reference","playback reference",{"440 hz","median","realtime"},1)
   params:set_action("playback reference",update_parameters)
   
@@ -219,6 +221,38 @@ function update_main()
   end
 end
 
+function rec_start()
+  print("init recording")
+  softcut.position(1,0)
+  softcut.rec(1,1)
+  softcut.play(1,1)
+  softcut.loop_end(1,300)
+  s.freqs={}
+  s.amps={}
+  s.loop_bias={0,0}
+  s.recording=true
+  s.loop_end=1
+  s.silence_time=0
+  -- reset positions of all current notes
+  for i=2,6 do
+    softcut.position(i,0)
+    softcut.level(i,0)
+    s.v[i].started=false
+  end
+end
+
+function rec_stop()
+  print("stop recording")
+  s.recording=false
+  softcut.rec(1,0)
+  softcut.play(1,0)
+  softcut.position(1,0)
+  s.loop_end=s.v[1].position-(params:get("debounce time")/1000)
+  if params:get("keep armed")==1 then
+    s.armed=false
+  end
+end
+
 function update_amp(val)
   -- toggle recording on with incoming amplitude
   -- toggle recording off with silence
@@ -230,34 +264,14 @@ function update_amp(val)
     -- reset silence time
     s.silence_time=0
     if not s.recording and s.armed then
-      print("init recording")
-      softcut.position(1,0)
-      softcut.rec(1,1)
-      softcut.play(1,1)
-      softcut.loop_end(1,300)
-      s.freqs={}
-      s.amps={}
-      s.loop_bias={0,0}
-      s.recording=true
-      s.loop_end=1
-      -- reset positions of all current notes
-      for i=2,6 do
-        softcut.position(i,0)
-        softcut.level(i,0)
-        s.v[i].started=false
-      end
+      rec_start()
     end
   elseif s.recording then
     -- not above threshold, should add to silence time
     -- to eventually trigger stop recording
     s.silence_time=s.silence_time+params:get("resolution")/1000
     if s.silence_time>params:get("debounce time")/1000 then
-      print("stop recording")
-      s.recording=false
-      softcut.rec(1,0)
-      softcut.play(1,0)
-      softcut.position(1,0)
-      s.loop_end=s.v[1].position-(params:get("debounce time")/1000)
+      rec_stop()
     end
   end
 end
@@ -295,11 +309,17 @@ end
 --
 
 function key(n,z)
-  if z==1 then
+  if n==2 and z==1 then
     s.armed=not s.armed
-    print(s.armed)
-    s.update_ui=true
+  elseif n==3 and z==1 then
+    s.recording=not s.recording
+    if s.recording then
+      rec_start()
+    else
+      rec_stop()
+    end
   end
+  s.update_ui=true
 end
 
 function enc(n,d)
@@ -323,12 +343,13 @@ function redraw()
     screen.stroke()
     screen.move(111,8)
     screen.text("REC")
-  elseif s.armed then
-    screen.level(1)
-    screen.rect(108,1,20,10)
+  end
+  if s.armed then
+    screen.level(15)
+    screen.rect(8,1,20,10)
     screen.stroke()
-    screen.move(111,8)
-    screen.text("RDY")
+    screen.move(11,8)
+    screen.text("ARM")
   end
   
   screen.level(15)
