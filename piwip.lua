@@ -39,6 +39,7 @@ function init()
     s.v[i].midi=0 -- target midi note
     s.v[i].freq=0 -- current frequency
     s.v[i].loop_end=0
+    s.v[i].started=false
   end
   
   -- initialize timers
@@ -123,12 +124,13 @@ end
 
 function update_freq(f)
   -- ignore frequencies below 30 hz
-  if s.recording and f<30 then
-    current_position=round_to_nearest(s.v[1].position,params:get("resolution")/1000)
+  if s.recording and f>30 then
+    current_position=string.format("%.3f",round_to_nearest(s.v[1].position,params:get("resolution")/1000))
     if s.freqs[current_position]~=nil then
       s.freqs[current_position]=(s.freqs[current_position]+f)/2
     else
       s.freqs[current_position]=f
+      print(current_position,f)
     end
   end
 end
@@ -152,25 +154,31 @@ function update_main()
     
     -- modulate the voice's rate to match upcoming pitch
     -- find the closest pitch
-    for j=2,-1,-1 do
+    for j=2,-5,-1 do
       next_position=round_to_nearest(s.v[i].position+j*params:get("resolution")/1000,params:get("resolution")/1000)
       if s.freqs[next_position]~=nil then
         break
       end
     end
+    if s.freqs[next_position]==nil then
+	    print("voice "..i.." no freqs found at pos "..s.v[i].position)
+	    goto continue 
+    end
     
-    if s.freqs[next_position]==nil then goto continue end
-    
-    -- update the rate to match correclty modulate upcoming pitch
-    softcut.rate(i,s.v[i].freq/s.freqs[next_position])
+    print("updating rate")
+    print(s.v[i].freq,s.freqs[next_position])
     
     -- initialize the voice playing
-    if not s.v[i].started then
+    if s.v[i].started==false then
+      print("starting "..i)
       s.v[i].started=true
       softcut.position(i,util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end))
       softcut.play(i,1)
       softcut.level(i,1)
     end
+    
+    -- update the rate to match correclty modulate upcoming pitch
+    softcut.rate(i,s.v[i].freq/s.freqs[next_position])
     ::continue::
   end
 end
@@ -214,7 +222,6 @@ end
 
 function update_midi(data)
   msg=midi.to_msg(data)
-  print(msg)
   if msg.type=='note_on' then
     -- find first available voice and turn it on
     -- it will be initialized in update_main
