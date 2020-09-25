@@ -161,8 +161,13 @@ function update_main()
     if s.loop_end<params:get("min recorded")/1000 then goto continue end
     
     -- make sure its bounded by recorded material
-    if s.loop_end~=s.v[i].loop_end then
-      softcut.loop_end(i,s.loop_end)
+    -- and biased by the current bias
+    if s.loop_end~=s.v[i].loop_end or s.v[i].loop_bias[1]~=s.loop_bias[1] or s.v[i].loop_bias[2]~=s.loop_bias[2] then
+      print("voice "..i.." updating loop points")
+      s.v[i].loop_bias=s.loop_bias
+      s.v[i].loop_end=s.loop_end
+      softcut.loop_end(i,s.loop_end-s.loop_bias[2])
+      softcut.loop_start(i,s.loop_bias[1])
     end
     
     -- modulate the voice's rate to match upcoming pitch
@@ -229,6 +234,7 @@ function update_amp(val)
       softcut.loop_end(1,300)
       s.freqs={}
       s.amps={}
+      s.loop_bias={0,0}
       s.recording=true
       s.loop_end=1
       -- reset positions of all current notes
@@ -292,6 +298,15 @@ function key(n,z)
     s.update_ui=true
   end
 end
+
+function enc(n,d)
+  if n==1 then
+  elseif n==2 then
+    s.loop_bias[1]=util.clamp(s.loop_bias[1]+d,0,s.loop_end-s.loop_bias[2])
+  elseif n==3 then
+    s.loop_bias[2]=util.clamp(s.loop_bias[2]+d,s.loop_bias[1],s.loop_end)
+  end
+end
 --
 -- screen
 --
@@ -334,8 +349,16 @@ function draw_waveform()
   local w=r-l
   local m=32
   local h=32
-  maxval=max(s.amps)
-  nval=#s.amps
+  
+  local amps={}
+  -- truncate amps to the the current biased loop
+  for k,v in pairs(s.amps) do
+    if k*params:get("resolution")/1000>s.loop_bias[1] and k*params:get("resolution")/1000<s.loop_end-s.loop_bias[2] then
+      table.insert(amps,v)
+    end
+  end
+  maxval=max(amps)
+  nval=#amps
   
   maxw=nval
   if maxw>w then
@@ -358,14 +381,14 @@ function draw_waveform()
   end
   if nval<w then
     -- draw from left to right
-    for k,v in pairs(s.amps) do
+    for k,v in pairs(amps) do
       disp[k]=(v/maxval)*h
     end
   else
     for i=1,w do
       disp[i]=-2
     end
-    for k,v in pairs(s.amps) do
+    for k,v in pairs(amps) do
       i=round(w/nval*k)
       if i>=1 and i<=w then
         if disp[i]==-2 then
