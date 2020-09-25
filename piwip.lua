@@ -58,7 +58,7 @@ function init()
     update_freq(value)
   end)
   pitch_poll_l:start()
-  local pitch_poll_r=poll.set("pitch_poll_r",function(value)
+  local pitch_poll_r=poll.set("pitch_in_r",function(value)
     update_freq(value)
   end)
   pitch_poll_r:start()
@@ -125,7 +125,7 @@ function update_freq(f)
   -- ignore frequencies below 30 hz
   if s.recording and f<30 then
     current_position=round_to_nearest(s.v[1].position,params:get("resolution")/1000)
-    if s.freqs[current_position]==nil then
+    if s.freqs[current_position]~=nil then
       s.freqs[current_position]=(s.freqs[current_position]+f)/2
     else
       s.freqs[current_position]=f
@@ -186,7 +186,7 @@ function update_amp(val)
       softcut.position(1,0)
       softcut.rec(1,1)
       softcut.play(1,1)
-      softcut.loop_end(300)
+      softcut.loop_end(1,300)
       s.freqs={}
       s.recording=true
       s.loop_end=1
@@ -200,7 +200,7 @@ function update_amp(val)
   elseif s.recording then
     -- not above threshold, should add to silence time
     -- to eventually trigger stop recording
-    s.silence_time+=params:get("resolution")/1000
+    s.silence_time=s.silence_time+params:get("resolution")/1000
     if s.silence_time>params:get("debounce time")/1000 then
       print("stop recording")
       s.recording=false
@@ -214,6 +214,7 @@ end
 
 function update_midi(data)
   msg=midi.to_msg(data)
+  print(msg)
   if msg.type=='note_on' then
     -- find first available voice and turn it on
     -- it will be initialized in update_main
