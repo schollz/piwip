@@ -20,9 +20,11 @@ s={
   loop_bias={0,0},-- bias the start/end of loop
   silence_time=0,-- amount of silence (during recording)
   armed=true,
-  median_frequency=440,
+  median_frequency=262,
   mode=0,
   mode_name="",
+  shift=false,
+  monitor=false,
 }
 
 function init()
@@ -43,7 +45,7 @@ function init()
   params:set_action("live follow",update_parameters)
   params:add_option("keep armed","keep armed",{"no","yes"},1)
   params:set_action("keep armed",update_parameters)
-  params:add_option("playback reference","playback reference",{"440 hz","median","realtime"},1)
+  params:add_option("playback reference","playback reference",{"middle C","median","realtime"},1)
   params:set_action("playback reference",update_parameters)
   params:add_option("only play during rec","only play during rec",{"no","yes"},1)
   params:set_action("only play during rec",update_parameters)
@@ -188,12 +190,12 @@ function update_main()
     local ref_freq=0
     if params:get("playback reference")==2 then
       ref_freq=s.median_frequency
-    elseif then
+    elseif params:get("playback reference")==3 then
       -- determine from realtime frequencies
       -- modulate the voice's rate to match upcoming pitch
       -- find the closest pitch
       ref_freq=s.median_frequency
-      for j=10,0,-1 do
+      for j=1,20 do
         next_position=get_position(i)+j*params:get("resolution")/1000
         if s.freqs[next_position]~=nil then
           ref_freq=s.freqs[next_position]
@@ -201,7 +203,8 @@ function update_main()
         end
       end
     else
-      ref_freq=440
+      -- middle c
+      ref_freq=261.63
     end
     
     -- initialize the voice playing
@@ -340,9 +343,23 @@ end
 --
 
 function key(n,z)
-  if n==2 and z==1 then
+  if n==1 then
+    if z==1 then
+      s.shift=true
+    else
+      s.shift=false
+    end
+  elseif s.shift and n==2 and z==1 then
+    -- toggle monitor
+    s.monitor=not s.monitor
+    if s.monitor then
+      audio.level_monitor(1)
+    else
+      audio.level_monitor(0)
+    end
+  elseif not s.shift and n==2 and z==1 then
     s.armed=not s.armed
-  elseif n==3 and z==1 then
+  elseif not s.shift and n==3 and z==1 then
     s.recording=not s.recording
     if s.recording then
       rec_start()
