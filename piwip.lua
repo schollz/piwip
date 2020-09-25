@@ -104,7 +104,7 @@ function init()
     
     softcut.fade_time(i,0.2)
     softcut.level_slew_time(i,params:get("resolution")/1000*10)
-    softcut.rate_slew_time(i,params:get("resolution")/1000*2)
+    softcut.rate_slew_time(i,params:get("resolution")/1000*0.25)
     
     softcut.buffer(i,1)
     softcut.position(i,0)
@@ -167,23 +167,11 @@ function update_main()
     
     -- modulate the voice's rate to match upcoming pitch
     -- find the closest pitch
-    for j=2,-5,-1 do
+    next_position=nil
+    for j=3,0,-1 do
       next_position=get_position(i)+j*params:get("resolution")/1000
       if s.freqs[next_position]~=nil then
         break
-      end
-    end
-    if s.freqs[next_position]==nil then
-      if s.recording then
-        s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
-        softcut.position(i,s.v[i].position)
-      else
-        -- find median
-        s.freqs[next_position]=median(s.freqs)
-        if s.freqs[next_position]==nil then
-          softcut.rate(i,1)
-          goto continue
-        end
       end
     end
     
@@ -201,10 +189,24 @@ function update_main()
       softcut.position(i,s.v[i].position)
       softcut.play(i,1)
       softcut.level(i,1)
+      if next_position~=nil and s.freqs[next_position]~=nil then
+        target_freq=s.freqs[next_position]
+      elseif #s.freqs>0 then
+        target_freq=median(s.freqs)
+      else
+        target_freq=s.v[i].freq
+      end
+      if target_freq==nil then
+        target_freq=s.v[i].freq
+      end
+      print("target_freq: "..target_freq)
+      softcut.rate(i,s.v[i].freq/target_freq)
     end
     
-    -- update the rate to match correclty modulate upcoming pitch
-    softcut.rate(i,s.v[i].freq/s.freqs[next_position])
+    -- update the rate to match correctly modulate upcoming pitch
+    if next_position~=nil and s.freqs[next_position]~=nil then
+      softcut.rate(i,s.v[i].freq/s.freqs[next_position])
+    end
     ::continue::
   end
 end
@@ -269,12 +271,11 @@ function update_midi(data)
     for i=2,6 do
       if s.v[i].midi==msg.note then
         print("voice "..i.." "..msg.note.." off")
+        softcut.level(i,0)
+        softcut.play(i,0)
         s.v[i].midi=0
         s.v[i].freq=0
         s.v[i].started=false
-        softcut.play(i,0)
-        softcut.rate(i,0)
-        softcut.level(i,0)
       end
     end
   end
