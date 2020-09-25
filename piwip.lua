@@ -13,6 +13,7 @@
 s={
   v={},-- voices to be initialized in init()
   freqs={},-- stores frequency information
+  amps={},--store amp information
   update_ui=false,-- toggles redraw
   recording=false,-- recording state
   loop_end=0,-- amount recorded into buffer
@@ -98,7 +99,7 @@ function init()
     
     softcut.fade_time(i,0.2)
     softcut.level_slew_time(i,params:get("resolution")/1000*10)
-    softcut.rate_slew_time(i,params:get("resolution")/1000)
+    softcut.rate_slew_time(i,params:get("resolution")/1000*2)
     
     softcut.buffer(i,1)
     softcut.position(i,0)
@@ -120,12 +121,15 @@ function update_positions(i,x)
     s.loop_end=x
   end
   s.v[i].position=x
+  if s.v[i].midi>0 then
+    s.update_ui=true
+  end
 end
 
 function update_freq(f)
   -- ignore frequencies below 30 hz
   if s.recording and f>30 and f<1000 then
-	 current_position=get_position(1)
+    current_position=get_position(1)
     if s.freqs[current_position]~=nil then
       s.freqs[current_position]=(s.freqs[current_position]+f)/2
     else
@@ -136,11 +140,11 @@ function update_freq(f)
 end
 
 function get_position(i)
-return tonumber(string.format("%.3f",round_to_nearest(s.v[i].position,params:get("resolution")/1000)))
+  return tonumber(string.format("%.3f",round_to_nearest(s.v[i].position,params:get("resolution")/1000)))
 end
 
 function update_main()
-  if s.update_main then
+  if s.update_ui then
     redraw()
   end
   -- check active voices and match their pitch using rate
@@ -165,30 +169,28 @@ function update_main()
       end
     end
     if s.freqs[next_position]==nil then
-if s.recording then
-      s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
-      softcut.position(i,s.v[i].position)
+      if s.recording then
+        s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
+        softcut.position(i,s.v[i].position)
       else
-	      print("reverting to 1")
-      softcut.rate(i,1)
-softcut.position(i,0)
-softcut.loop_start(i,0)
-softcut.level(i,1)
-softcut.play(i,1)
-softcut.loop_end(i,s.loop_end)
+        -- find median
+        s.freqs[next_position]=median(s.freqs)
+        if s.freqs[next_position]==nil then
+          softcut.rate(i,1)
+          goto continue
+        end
       end
-      print("no freq found "..get_position(i))
-	    goto continue 
     end
-    
-    print("updating rate")
-    print(s.v[i].freq,s.freqs[next_position])
     
     -- initialize the voice playing
     if s.v[i].started==false then
       print("starting "..i)
       s.v[i].started=true
-      s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
+      if s.recording then
+        s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
+      else
+        s.v[i].position=util.clamp(s.v[i].position,0,s.loop_end)
+      end
       softcut.position(i,s.v[i].position)
       softcut.play(i,1)
       softcut.level(i,1)
@@ -203,6 +205,10 @@ end
 function update_amp(val)
   -- toggle recording on with incoming amplitude
   -- toggle recording off with silence
+  if s.recording then
+    table.insert(s.amps,val)
+    s.update_ui=true
+  end
   if val>params:get("rec thresh")/1000 then
     -- reset silence time
     s.silence_time=0
@@ -213,6 +219,7 @@ function update_amp(val)
       softcut.play(1,1)
       softcut.loop_end(1,300)
       s.freqs={}
+      s.amps={}
       s.recording=true
       s.loop_end=1
       -- reset positions of all current notes
@@ -273,9 +280,101 @@ end
 function redraw()
   s.update_ui=false
   screen.clear()
+  screen.level(15)
+  if #s.amps==0 then
+    screen.move(64,32-8)
+    screen.text_center("play instruments")
+    screen.move(64,32)
+    screen.text_center("while")
+    screen.move(64,32+8)
+    screen.text_center("instruments play")
+  else
+    draw_waveform()
+  end
   screen.update()
 end
 
+function draw_waveform()
+  -- show amplitudes
+  local l=1
+  local r=128
+  local w=r-l
+  local m=32
+  local h=32
+  maxval=max(s.amps)
+  nval=#s.amps
+  
+  maxw=nval
+  if maxw>w then
+    maxw=w
+  end
+  
+  -- find active positions
+  active_pos={}
+  for i=2,6 do
+    if s.v[i].midi>0 then
+      table.insert(active_pos,round(s.v[i].position/s.loop_end*maxw))
+      table.insert(active_pos,round(s.v[i].position/s.loop_end*maxw)+1)
+      table.insert(active_pos,round(s.v[i].position/s.loop_end*maxw)-1)
+    end
+  end
+  
+  disp={}
+  for i=1,w do
+    disp[i]=-1
+  end
+  if nval<w then
+    -- draw from left to right
+    for k,v in pairs(s.amps) do
+      disp[k]=(v/maxval)*h
+    end
+  else
+    for i=1,w do
+      disp[i]=-2
+    end
+    for k,v in pairs(s.amps) do
+      i=round(w/nval*k)
+      if i>=1 and i<=w then
+        if disp[i]==-2 then
+          disp[i]=(v/maxval)*h
+        else
+          disp[i]=(disp[i]+(v/maxval)*h)/2
+        end
+      end
+    end
+    for k,v in pairs(disp) do
+      if v==-2 then
+        if k==1 then
+          disp[k]=0
+        else
+          disp[k]=disp[k-1]
+        end
+      end
+    end
+  end
+  
+  maxval=max(disp)
+  for k,v in pairs(disp) do
+    if v==-1 then
+      break
+    end
+    bright=false
+    for l,u in pairs(active_pos) do
+      if k==u then
+        bright=true
+      end
+    end
+    if bright then
+      screen.level(15)
+    else
+      screen.level(1)
+    end
+    screen.move(l+k,m)
+    screen.line(l+k,m+(v/maxval)*h)
+    screen.line(l+k,m-(v/maxval)*h)
+    screen.stroke()
+  end
+end
 --
 -- utils
 --
@@ -303,4 +402,40 @@ end
 
 function midi_to_hz(note)
   return (440/32)*(2^((note-9)/12))
+end
+
+function max(a)
+  local values={}
+  
+  for k,v in pairs(a) do
+    values[#values+1]=v
+  end
+  table.sort(values) -- automatically sorts lowest to highest
+  
+  return values[#values]
+end
+
+-- Get the median of a table.
+-- http://lua-users.org/wiki/SimpleStats
+function median(t)
+  local temp={}
+  
+  -- deep copy table so that when we sort it, the original is unchanged
+  -- also weed out any non numbers
+  for k,v in pairs(t) do
+    if type(v)=='number' then
+      table.insert(temp,v)
+    end
+  end
+  
+  table.sort(temp)
+  
+  -- If we have an even number of table elements or odd.
+  if math.fmod(#temp,2)==0 then
+    -- return mean value of middle two elements
+    return (temp[#temp/2]+temp[(#temp/2)+1])/2
+  else
+    -- return middle element
+    return temp[math.ceil(#temp/2)]
+  end
 end
