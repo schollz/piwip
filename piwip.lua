@@ -27,8 +27,6 @@ s={
 
 function init()
   params:add_separator("piwip")
-  params:add_taper("slew rate","slew rate",0,30,(60/clock.get_tempo()),0,"s")
-  params:set_action("slew rate",update_parameters)
   params:add_taper("resolution","resolution",10,200,50,0,"ms")
   params:set_action("resolution",update_parameters)
   params:add_control("rec thresh","rec thresh",controlspec.new(1,100,'exp',1,20,'amp/1k'))
@@ -360,19 +358,38 @@ function enc(n,d)
     if s.mode==0 then
       params:write(_path.data..'piwip/'.."piwip_temp.pset")
     end
-    s.mode=utils.clamp(s.mode+sign(d),0,3)
+    s.mode=utils.clamp(s.mode+sign(d),0,4)
     if s.mode==0 then
       s.mode_name=""
       params:read(_path.data..'piwip/'.."piwip_temp.pset")
     elseif s.mode==1 then
-      -- sampler mode
       s.mode_name="sampler"
+      params:set("live follow",1)
+      params:set("keep armed",1)
+      params:set("playback reference",1)
+      params:set("only play during rec",1)
+      params:set("notes start at 0",2)
     elseif s.mode==2 then
-      -- live voice
       s.mode_name="live voice"
+      params:set("live follow",1)
+      params:set("keep armed",2)
+      params:set("playback reference",2)
+      params:set("only play during rec",2)
+      params:set("notes start at 0",2)
     elseif s.mode==3 then
-      -- live instrument
       s.mode_name="live instrument"
+      params:set("live follow",2)
+      params:set("keep armed",2)
+      params:set("playback reference",3)
+      params:set("only play during rec",1)
+      params:set("notes start at 0",1)
+    elseif s.mode==4 then
+      s.mode_name="weird sampler"
+      params:set("live follow",2)
+      params:set("keep armed",2)
+      params:set("playback reference",3)
+      params:set("only play during rec",1)
+      params:set("notes start at 0",1)
     end
   elseif n==2 then
     s.loop_bias[1]=util.clamp(s.loop_bias[1]+d,0,s.loop_end-s.loop_bias[2])
