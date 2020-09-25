@@ -21,7 +21,7 @@ s={
 }
 
 function init()
-  params:add_separator("prism")
+  params:add_separator("piwip")
   params:add_taper("slew rate","slew rate",0,30,(60/clock.get_tempo()),0,"s")
   params:set_action("slew rate",update_parameters)
   params:add_taper("resolution","resolution",10,200,50,0,"ms")
@@ -32,7 +32,7 @@ function init()
   params:set_action("debounce time",update_parameters)
   params:add_taper("min recorded","min recorded",10,1000,60,0,"ms")
   params:set_action("min recorded",update_parameters)
-  params:read(_path.data..'prism/'.."prism.pset")
+  params:read(_path.data..'piwip/'.."piwip.pset")
   
   for i=1,6 do
     s.v[i]={}
@@ -112,7 +112,7 @@ end
 -- updaters
 --
 function update_parameters(x)
-  params:write(_path.data..'prism/'.."prism.pset")
+  params:write(_path.data..'piwip/'.."piwip.pset")
 end
 
 function update_positions(i,x)
