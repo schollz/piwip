@@ -31,6 +31,8 @@ function init()
   params:set_action("resolution",update_parameters)
   params:add_control("rec thresh","rec thresh",controlspec.new(1,100,'exp',1,20,'amp/1k'))
   params:set_action("rec thresh",update_parameters)
+  params:add_control("vol pinch","vol pinch",controlspec.new(0,1000,'lin',1,500,'ms'))
+  params:set_action("vol pinch",update_parameters)
   params:add_taper("debounce time","debounce time",10,500,200,0,"ms")
   params:set_action("debounce time",update_parameters)
   params:add_taper("min recorded","min recorded",10,1000,60,0,"ms")
@@ -223,8 +225,14 @@ end
 
 function rec_start()
   print("init recording")
+  -- reset positions of all current notes
+  for i=2,6 do
+    softcut.position(i,0)
+    softcut.level(i,0)
+    s.v[i].started=false
+  end
+  -- initialize recording
   softcut.position(1,0)
-  softcut.rec(1,1)
   softcut.play(1,1)
   softcut.loop_end(1,300)
   s.freqs={}
@@ -233,21 +241,35 @@ function rec_start()
   s.recording=true
   s.loop_end=1
   s.silence_time=0
-  -- reset positions of all current notes
-  for i=2,6 do
-    softcut.position(i,0)
-    softcut.level(i,0)
-    s.v[i].started=false
-  end
+  -- slowly start recording
+  -- ease in recording signal to avoid clicks near loop points
+  clock.run(function()
+    if params:get("vol pinch")>0 then
+      for j=1,10 do
+        softcut.rec(i,j*0.1)
+        clock.sleep(params:get("vol pinch")/10/1000)
+      end
+    end
+    softcut.rec(i,1)
+  end)
 end
 
 function rec_stop()
   print("stop recording")
   s.recording=false
-  softcut.rec(1,0)
-  softcut.play(1,0)
-  softcut.position(1,0)
-  s.loop_end=s.v[1].position-(params:get("debounce time")/1000)
+  -- slowly stop
+  clock.run(function()
+    if params:get("vol pinch")>0 then
+      for j=1,10 do
+        softcut.rec(i,(10-j)*0.1)
+        clock.sleep(params:get("vol pinch")/10/1000)
+      end
+    end
+    softcut.rec(i,0)
+    softcut.play(1,0)
+    softcut.position(1,0)
+    s.loop_end=s.v[1].position-(params:get("debounce time")/1000)
+  end)
   if params:get("keep armed")==1 then
     s.armed=false
   end
