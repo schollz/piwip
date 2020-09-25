@@ -17,7 +17,9 @@ s={
   update_ui=false,-- toggles redraw
   recording=false,-- recording state
   loop_end=0,-- amount recorded into buffer
+  loop_bias={0,0},-- bias the start/end of loop
   silence_time=0,-- amount of silence (during recording)
+  armed=true,
 }
 
 function init()
@@ -32,6 +34,9 @@ function init()
   params:set_action("debounce time",update_parameters)
   params:add_taper("min recorded","min recorded",10,1000,60,0,"ms")
   params:set_action("min recorded",update_parameters)
+  params:add_option("notes reset sample","notes reset sample",{"no","yes"},1)
+  params:set_action("notes reset sample",update_parameters)
+  
   params:read(_path.data..'piwip/'.."piwip.pset")
   
   for i=1,6 do
@@ -188,6 +193,8 @@ function update_main()
       s.v[i].started=true
       if s.recording then
         s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
+      elseif params:get("notes reset sample")==2 then
+        s.v[i].position=0
       else
         s.v[i].position=util.clamp(s.v[i].position,0,s.loop_end)
       end
@@ -212,7 +219,7 @@ function update_amp(val)
   if val>params:get("rec thresh")/1000 then
     -- reset silence time
     s.silence_time=0
-    if not s.recording then
+    if not s.recording and s.armed then
       print("init recording")
       softcut.position(1,0)
       softcut.rec(1,1)
@@ -267,7 +274,6 @@ function update_midi(data)
         s.v[i].started=false
         softcut.play(i,0)
         softcut.rate(i,0)
-        softcut.position(i,0)
         softcut.level(i,0)
       end
     end
@@ -275,11 +281,37 @@ function update_midi(data)
 end
 
 --
+-- input
+--
+
+function key(n,z)
+  if z==1 then
+    s.armed=not s.armed
+    print(s.armed)
+    s.update_ui=true
+  end
+end
+--
 -- screen
 --
 function redraw()
   s.update_ui=false
   screen.clear()
+  
+  if s.recording then
+    screen.level(15)
+    screen.rect(108,1,20,10)
+    screen.stroke()
+    screen.move(111,8)
+    screen.text("REC")
+  elseif s.armed then
+    screen.level(1)
+    screen.rect(108,1,20,10)
+    screen.stroke()
+    screen.move(111,8)
+    screen.text("RDY")
+  end
+  
   screen.level(15)
   if #s.amps==0 then
     screen.move(64,32-8)
