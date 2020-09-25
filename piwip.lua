@@ -22,6 +22,7 @@ s={
   armed=true,
   median_frequency=440,
   mode=0,
+  mode_name="",
 }
 
 function init()
@@ -361,19 +362,24 @@ function enc(n,d)
     end
     s.mode=utils.clamp(s.mode+sign(d),0,3)
     if s.mode==0 then
-      params:read(_path.data..'piwip/'.."piwip.pset")
+      s.mode_name=""
+      params:read(_path.data..'piwip/'.."piwip_temp.pset")
     elseif s.mode==1 then
       -- sampler mode
+      s.mode_name="sampler"
     elseif s.mode==2 then
       -- live voice
+      s.mode_name="live voice"
     elseif s.mode==3 then
       -- live instrument
+      s.mode_name="live instrument"
     end
   elseif n==2 then
     s.loop_bias[1]=util.clamp(s.loop_bias[1]+d,0,s.loop_end-s.loop_bias[2])
   elseif n==3 then
     s.loop_bias[2]=util.clamp(s.loop_bias[2]+d,s.loop_bias[1],s.loop_end)
   end
+  s.update_ui=true
 end
 --
 -- screen
@@ -381,6 +387,10 @@ end
 function redraw()
   s.update_ui=false
   screen.clear()
+  
+  screen.move(3,60)
+  screen.level(15)
+  screen.text(s.mode_name)
   
   if s.recording then
     screen.level(15)
