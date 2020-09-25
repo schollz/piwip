@@ -18,6 +18,28 @@ future directions:
 
 ### Documentation
 
+#### sampler 
+
+- live follow: off 
+- keep armed: no
+- playback reference: 440
+- only play during rec: no
+
+#### "live voice"
+
+- live follow: off
+- keep armed: yes 
+- playback reference: median
+- "only play during rec": yes
+
+#### "live instrument":
+
+- live follow: on
+- keep armed: yes 
+- playback reference: realtime
+- "only play during rec": yes
+
+
 
 ## demo 
 

@@ -21,6 +21,7 @@ s={
   silence_time=0,-- amount of silence (during recording)
   armed=true,
   median_frequency=440,
+  mode=0,
 }
 
 function init()
@@ -39,10 +40,14 @@ function init()
   params:set_action("min recorded",update_parameters)
   params:add_option("notes start at 0","notes start at 0",{"no","yes"},1)
   params:set_action("notes start at 0",update_parameters)
+  params:add_option("live follow","live follow",{"no","yes"},2)
+  params:set_action("live follow",update_parameters)
   params:add_option("keep armed","keep armed",{"no","yes"},1)
   params:set_action("keep armed",update_parameters)
   params:add_option("playback reference","playback reference",{"440 hz","median","realtime"},1)
   params:set_action("playback reference",update_parameters)
+  params:add_option("only play during rec","only play during rec",{"no","yes"},1)
+  params:set_action("only play during rec",update_parameters)
   
   params:read(_path.data..'piwip/'.."piwip.pset")
   
@@ -204,7 +209,7 @@ function update_main()
     if s.v[i].started==false then
       print("starting "..i)
       s.v[i].started=true
-      if s.recording then
+      if s.recording and params:get("live follow")==2 then
         s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
       elseif params:get("notes start at 0")==2 then
         s.v[i].position=0
@@ -303,6 +308,9 @@ end
 function update_midi(data)
   msg=midi.to_msg(data)
   if msg.type=='note_on' then
+    if params:get("only play during rec")==2 and not s.recording then
+      do return end
+    end
     -- find first available voice and turn it on
     -- it will be initialized in update_main
     for i=2,6 do
@@ -348,6 +356,19 @@ end
 
 function enc(n,d)
   if n==1 then
+    if s.mode==0 then
+      params:write(_path.data..'piwip/'.."piwip_temp.pset")
+    end
+    s.mode=utils.clamp(s.mode+sign(d),0,3)
+    if s.mode==0 then
+      params:read(_path.data..'piwip/'.."piwip.pset")
+    elseif s.mode==1 then
+      -- sampler mode
+    elseif s.mode==2 then
+      -- live voice
+    elseif s.mode==3 then
+      -- live instrument
+    end
   elseif n==2 then
     s.loop_bias[1]=util.clamp(s.loop_bias[1]+d,0,s.loop_end-s.loop_bias[2])
   elseif n==3 then
