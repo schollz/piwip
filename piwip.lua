@@ -20,6 +20,7 @@ s={
   loop_bias={0,0},-- bias the start/end of loop
   silence_time=0,-- amount of silence (during recording)
   armed=true,
+  median_frequency=440,
 }
 
 function init()
@@ -36,6 +37,8 @@ function init()
   params:set_action("min recorded",update_parameters)
   params:add_option("notes reset sample","notes reset sample",{"no","yes"},1)
   params:set_action("notes reset sample",update_parameters)
+  params:add_option("playback reference","playback reference",{"440 hz","median","realtime"},1)
+  params:set_action("playback reference",update_parameters)
   
   params:read(_path.data..'piwip/'.."piwip.pset")
   
@@ -44,6 +47,7 @@ function init()
     s.v[i].position=0
     s.v[i].midi=0 -- target midi note
     s.v[i].freq=0 -- current frequency
+    s.v[i].ref_freq=0 -- target frequency
     s.v[i].loop_end=0
     s.v[i].started=false
   end
@@ -139,8 +143,8 @@ function update_freq(f)
       s.freqs[current_position]=(s.freqs[current_position]+f)/2
     else
       s.freqs[current_position]=f
-      print(current_position,f)
     end
+    s.median_frequency=median(s.freqs)
   end
 end
 
@@ -170,14 +174,24 @@ function update_main()
       softcut.loop_start(i,s.loop_bias[1])
     end
     
-    -- modulate the voice's rate to match upcoming pitch
-    -- find the closest pitch
-    next_position=nil
-    for j=3,0,-1 do
-      next_position=get_position(i)+j*params:get("resolution")/1000
-      if s.freqs[next_position]~=nil then
-        break
+    -- determine target frequency
+    local ref_freq=0
+    if params:get("playback reference")==2 then
+      ref_freq=s.median_frequency
+    elseif then
+      -- determine from realtime frequencies
+      -- modulate the voice's rate to match upcoming pitch
+      -- find the closest pitch
+      ref_freq=s.median_frequency
+      for j=10,0,-1 do
+        next_position=get_position(i)+j*params:get("resolution")/1000
+        if s.freqs[next_position]~=nil then
+          ref_freq=s.freqs[next_position]
+          break
+        end
       end
+    else
+      ref_freq=440
     end
     
     -- initialize the voice playing
@@ -194,23 +208,12 @@ function update_main()
       softcut.position(i,s.v[i].position)
       softcut.play(i,1)
       softcut.level(i,1)
-      if next_position~=nil and s.freqs[next_position]~=nil then
-        target_freq=s.freqs[next_position]
-      elseif #s.freqs>0 then
-        target_freq=median(s.freqs)
-      else
-        target_freq=s.v[i].freq
-      end
-      if target_freq==nil then
-        target_freq=s.v[i].freq
-      end
-      print("target_freq: "..target_freq)
-      softcut.rate(i,s.v[i].freq/target_freq)
     end
     
     -- update the rate to match correctly modulate upcoming pitch
-    if next_position~=nil and s.freqs[next_position]~=nil then
-      softcut.rate(i,s.v[i].freq/s.freqs[next_position])
+    if s.v[i].ref_freq~=ref_freq then
+      s.v[i].ref_freq=ref_freq
+      softcut.rate(i,s.v[i].freq/s.v[i].ref_freq)
     end
     ::continue::
   end
@@ -495,3 +498,4 @@ function median(t)
     return temp[math.ceil(#temp/2)]
   end
 end
+
