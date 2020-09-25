@@ -20,7 +20,7 @@ s={
   loop_end=0,-- amount recorded into buffer
   loop_bias={0,0},-- bias the start/end of loop
   silence_time=0,-- amount of silence (during recording)
-  armed=true,
+  armed=false,
   median_frequency=262,
   mode=0,
   mode_name="",
@@ -51,6 +51,8 @@ function init()
   params:set_action("playback reference",update_parameters)
   params:add_option("only play during rec","only play during rec",{"no","yes"},1)
   params:set_action("only play during rec",update_parameters)
+  params:add_option("midi during rec","midi during rec",{"disabled","enabled"},1)
+  params:set_action("midi during rec",update_parameters)
   
   params:read(_path.data..'piwip/'.."piwip.pset")
   
@@ -62,6 +64,7 @@ function init()
     s.v[i].ref_freq=0 -- target frequency
     s.v[i].loop_end=0
     s.v[i].started=false
+    s.v[i].loop_bias={0,0}
   end
   
   -- initialize timers
@@ -129,6 +132,7 @@ function init()
     softcut.enable(i,1)
     softcut.phase_quant(i,params:get("resolution")/1000/2)
   end
+  
 end
 
 --
@@ -170,6 +174,14 @@ function update_main()
   if s.update_ui then
     redraw()
   end
+  if s.monitor_update then
+    s.monitor_update=false
+    if s.monitor then
+      audio.level_monitor(1)
+    else
+      audio.level_monitor(0)
+    end
+  end
   -- check active voices and match their pitch using rate
   for i=2,6 do
     -- skip if not playing
@@ -180,9 +192,10 @@ function update_main()
     
     -- make sure its bounded by recorded material
     -- and biased by the current bias
-    if s.loop_end~=s.v[i].loop_end or s.v[i].loop_bias[1]~=s.loop_bias[1] or s.v[i].loop_bias[2]~=s.loop_bias[2] then
+    print(s.v[i].loop_bias[1],s.loop_bias[1],s.v[i].loop_bias[2],s.loop_bias[2])
+    if s.v[i].started==false or s.loop_end~=s.v[i].loop_end or s.v[i].loop_bias[1]~=s.loop_bias[1] or s.v[i].loop_bias[2]~=s.loop_bias[2] then
       print("voice "..i.." updating loop points")
-      s.v[i].loop_bias=s.loop_bias
+      s.v[i].loop_bias={s.loop_bias[1],s.loop_bias[2]}
       s.v[i].loop_end=s.loop_end
       softcut.loop_end(i,s.loop_end-s.loop_bias[2])
       softcut.loop_start(i,s.loop_bias[1])
@@ -214,11 +227,11 @@ function update_main()
       print("starting "..i)
       s.v[i].started=true
       if s.recording and params:get("live follow")==2 then
-        s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
+        s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,s.loop_bias[1],s.loop_end-s.loop_bias[2])
       elseif params:get("notes start at 0")==2 then
-        s.v[i].position=0
+        s.v[i].position=s.loop_bias[1]
       else
-        s.v[i].position=util.clamp(s.v[i].position,0,s.loop_end)
+        s.v[i].position=util.clamp(s.v[i].position,s.loop_bias[1],s.loop_end-s.loop_bias[2])
       end
       softcut.position(i,s.v[i].position)
       softcut.play(i,1)
@@ -236,9 +249,13 @@ end
 
 function rec_start()
   print("init recording")
+  if s.mode==1 then
+    s.monitor=true
+    s.monitor_update=true
+  end
   -- reset positions of all current notes
   for i=2,6 do
-    softcut.position(i,0)
+    softcut.position(i,s.loop_bias[1])
     softcut.level(i,0)
     s.v[i].started=false
   end
@@ -284,6 +301,10 @@ function rec_stop()
   if params:get("keep armed")==1 then
     s.armed=false
   end
+  if s.mode==1 then
+    s.monitor=false
+    s.monitor_update=true
+  end
 end
 
 function update_amp(val)
@@ -314,6 +335,10 @@ function update_midi(data)
   if msg.type=='note_on' then
     if params:get("only play during rec")==2 and not s.recording then
       do return end
+
+    end
+    if params:get("midi during rec")==1 and (s.recording or s.armed) then
+      do return end
     end
     -- find first available voice and turn it on
     -- it will be initialized in update_main
@@ -322,6 +347,7 @@ function update_midi(data)
         print("voice "..i.." "..msg.note.." on")
         s.v[i].midi=msg.note
         s.v[i].freq=midi_to_hz(msg.note)
+        s.v[i].ref_freq=0
         break
       end
     end
@@ -354,12 +380,11 @@ function key(n,z)
   elseif s.shift and n==2 and z==1 then
     -- toggle monitor
     s.monitor=not s.monitor
+    s.monitor_update=true
     if s.monitor then
       show_message("monitor enabled")
-      audio.level_monitor(1)
     else
       show_message("monitor disabled")
-      audio.level_monitor(0)
     end
   elseif not s.shift and n==2 and z==1 then
     s.armed=not s.armed
@@ -375,6 +400,16 @@ function key(n,z)
   s.update_ui=true
 end
 
+function mode_sampler()
+  s.mode_name="sampler"
+  params:set("live follow",1)
+  params:set("keep armed",1)
+  params:set("playback reference",1)
+  params:set("only play during rec",1)
+  params:set("notes start at 0",2)
+  params:set("midi during rec",1)
+end
+
 function enc(n,d)
   if n==1 then
     if s.mode==0 then
@@ -385,12 +420,7 @@ function enc(n,d)
       s.mode_name=""
       params:read(_path.data..'piwip/'.."piwip_temp.pset")
     elseif s.mode==1 then
-      s.mode_name="sampler"
-      params:set("live follow",1)
-      params:set("keep armed",1)
-      params:set("playback reference",1)
-      params:set("only play during rec",1)
-      params:set("notes start at 0",2)
+      mode_sampler()
     elseif s.mode==2 then
       s.mode_name="live voice"
       params:set("live follow",1)
@@ -398,6 +428,7 @@ function enc(n,d)
       params:set("playback reference",2)
       params:set("only play during rec",2)
       params:set("notes start at 0",2)
+      params:set("midi during rec",2)
     elseif s.mode==3 then
       s.mode_name="live instrument"
       params:set("live follow",2)
@@ -405,6 +436,7 @@ function enc(n,d)
       params:set("playback reference",3)
       params:set("only play during rec",1)
       params:set("notes start at 0",1)
+      params:set("midi during rec",2)
     elseif s.mode==4 then
       s.mode_name="weird sampler"
       params:set("live follow",2)
@@ -412,6 +444,7 @@ function enc(n,d)
       params:set("playback reference",3)
       params:set("only play during rec",1)
       params:set("notes start at 0",1)
+      params:set("midi during rec",2)
     end
   elseif n==2 then
     s.loop_bias[1]=util.clamp(s.loop_bias[1]+d/100,0,s.loop_end-s.loop_bias[2])
@@ -485,7 +518,7 @@ function draw_waveform()
   local amps={}
   -- truncate amps to the the current biased loop
   for k,v in pairs(s.amps) do
-    if k*params:get("resolution")/1000>s.loop_bias[1] and k*params:get("resolution")/1000<s.loop_end-s.loop_bias[2] then
+    if k*params:get("resolution")/1000>=s.loop_bias[1] and k*params:get("resolution")/1000<=s.loop_end-s.loop_bias[2] then
       table.insert(amps,v)
     end
   end
@@ -501,9 +534,10 @@ function draw_waveform()
   active_pos={}
   for i=2,6 do
     if s.v[i].midi>0 then
-      table.insert(active_pos,round(s.v[i].position/s.loop_end*maxw))
-      table.insert(active_pos,round(s.v[i].position/s.loop_end*maxw)+1)
-      table.insert(active_pos,round(s.v[i].position/s.loop_end*maxw)-1)
+      curpos=(s.v[i].position-s.v[i].loop_bias[1])/(s.loop_end-s.v[i].loop_bias[2]-s.v[i].loop_bias[1])
+      table.insert(active_pos,round(curpos*maxw))
+      table.insert(active_pos,round(curpos*maxw)+1)
+      table.insert(active_pos,round(curpos*maxw)-1)
     end
   end
   
