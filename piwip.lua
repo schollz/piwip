@@ -25,7 +25,7 @@ function init()
   params:set_action("slew rate",update_parameters)
   params:add_taper("resolution","resolution",10,200,50,0,"ms")
   params:set_action("resolution",update_parameters)
-  params:add_control("rec thresh","rec thresh",controlspec.new(1,100,'exp',1,10,'amp/1k'))
+  params:add_control("rec thresh","rec thresh",controlspec.new(1,100,'exp',1,20,'amp/1k'))
   params:set_action("rec thresh",update_parameters)
   params:add_taper("debounce time","debounce time",10,500,200,0,"ms")
   params:set_action("debounce time",update_parameters)
@@ -97,7 +97,7 @@ function init()
     softcut.loop(i,1)
     
     softcut.fade_time(i,0.2)
-    softcut.level_slew_time(i,params:get("resolution")/1000)
+    softcut.level_slew_time(i,params:get("resolution")/1000*10)
     softcut.rate_slew_time(i,params:get("resolution")/1000)
     
     softcut.buffer(i,1)
@@ -124,8 +124,8 @@ end
 
 function update_freq(f)
   -- ignore frequencies below 30 hz
-  if s.recording and f>30 then
-    current_position=string.format("%.3f",round_to_nearest(s.v[1].position,params:get("resolution")/1000))
+  if s.recording and f>30 and f<1000 then
+	 current_position=get_position(1)
     if s.freqs[current_position]~=nil then
       s.freqs[current_position]=(s.freqs[current_position]+f)/2
     else
@@ -133,6 +133,10 @@ function update_freq(f)
       print(current_position,f)
     end
   end
+end
+
+function get_position(i)
+return tonumber(string.format("%.3f",round_to_nearest(s.v[i].position,params:get("resolution")/1000)))
 end
 
 function update_main()
@@ -155,13 +159,25 @@ function update_main()
     -- modulate the voice's rate to match upcoming pitch
     -- find the closest pitch
     for j=2,-5,-1 do
-      next_position=round_to_nearest(s.v[i].position+j*params:get("resolution")/1000,params:get("resolution")/1000)
+      next_position=get_position(i)+j*params:get("resolution")/1000
       if s.freqs[next_position]~=nil then
         break
       end
     end
     if s.freqs[next_position]==nil then
-	    print("voice "..i.." no freqs found at pos "..s.v[i].position)
+if s.recording then
+      s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
+      softcut.position(i,s.v[i].position)
+      else
+	      print("reverting to 1")
+      softcut.rate(i,1)
+softcut.position(i,0)
+softcut.loop_start(i,0)
+softcut.level(i,1)
+softcut.play(i,1)
+softcut.loop_end(i,s.loop_end)
+      end
+      print("no freq found "..get_position(i))
 	    goto continue 
     end
     
@@ -172,7 +188,8 @@ function update_main()
     if s.v[i].started==false then
       print("starting "..i)
       s.v[i].started=true
-      softcut.position(i,util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end))
+      s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
+      softcut.position(i,s.v[i].position)
       softcut.play(i,1)
       softcut.level(i,1)
     end
