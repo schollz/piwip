@@ -31,14 +31,14 @@ function init()
   params:set_action("resolution",update_parameters)
   params:add_control("rec thresh","rec thresh",controlspec.new(1,100,'exp',1,20,'amp/1k'))
   params:set_action("rec thresh",update_parameters)
+  params:add_taper("silence to stop","silence to stop",10,500,200,0,"ms")
+  params:set_action("silence to stop",update_parameters)
   params:add_control("vol pinch","vol pinch",controlspec.new(0,1000,'lin',1,500,'ms'))
   params:set_action("vol pinch",update_parameters)
-  params:add_taper("debounce time","debounce time",10,500,200,0,"ms")
-  params:set_action("debounce time",update_parameters)
   params:add_taper("min recorded","min recorded",10,1000,60,0,"ms")
   params:set_action("min recorded",update_parameters)
-  params:add_option("notes reset sample","notes reset sample",{"no","yes"},1)
-  params:set_action("notes reset sample",update_parameters)
+  params:add_option("notes start at 0","notes start at 0",{"no","yes"},1)
+  params:set_action("notes start at 0",update_parameters)
   params:add_option("keep armed","keep armed",{"no","yes"},1)
   params:set_action("keep armed",update_parameters)
   params:add_option("playback reference","playback reference",{"440 hz","median","realtime"},1)
@@ -72,10 +72,12 @@ function init()
   local pitch_poll_l=poll.set("pitch_in_l",function(value)
     update_freq(value)
   end)
+  pitch_poll_l.time=params:get("resolution")/1000
   pitch_poll_l:start()
   local pitch_poll_r=poll.set("pitch_in_r",function(value)
     update_freq(value)
   end)
+  pitch_poll_r.time=params:get("resolution")/1000
   pitch_poll_r:start()
   
   -- amplitude poll
@@ -204,7 +206,7 @@ function update_main()
       s.v[i].started=true
       if s.recording then
         s.v[i].position=util.clamp(s.v[1].position-params:get("min recorded")/1000,0,s.loop_end)
-      elseif params:get("notes reset sample")==2 then
+      elseif params:get("notes start at 0")==2 then
         s.v[i].position=0
       else
         s.v[i].position=util.clamp(s.v[i].position,0,s.loop_end)
@@ -268,7 +270,7 @@ function rec_stop()
     softcut.rec(i,0)
     softcut.play(1,0)
     softcut.position(1,0)
-    s.loop_end=s.v[1].position-(params:get("debounce time")/1000)
+    s.loop_end=s.v[1].position-(params:get("silence to stop")/1000)
   end)
   if params:get("keep armed")==1 then
     s.armed=false
@@ -292,7 +294,7 @@ function update_amp(val)
     -- not above threshold, should add to silence time
     -- to eventually trigger stop recording
     s.silence_time=s.silence_time+params:get("resolution")/1000
-    if s.silence_time>params:get("debounce time")/1000 then
+    if s.silence_time>params:get("silence to stop")/1000 then
       rec_stop()
     end
   end
