@@ -13,6 +13,8 @@
 -- E1 activates presets
 -- E2/E3 trims sample
 
+MusicUtil=require "musicutil"
+
 -- state variable
 s={
   v={},-- voices to be initialized in init()
@@ -31,9 +33,16 @@ s={
   shift=false,
   monitor=false,
   message="",
+  scale_names={},
+  notes={},
 }
 
+-- constants
 function init()
+  for i=1,#MusicUtil.SCALES do
+    table.insert(s.scale_names,string.lower(MusicUtil.SCALES[i].name))
+  end
+  
   params:add_separator("piwip")
   params:add_taper("resolution","resolution",10,200,50,0,"ms")
   params:set_action("resolution",update_parameters)
@@ -57,6 +66,22 @@ function init()
   params:set_action("only play during rec",update_parameters)
   params:add_option("midi during rec","midi during rec",{"disabled","enabled"},1)
   params:set_action("midi during rec",update_parameters)
+  
+  params:add_group("harmonizer",5)
+  params:add_taper("probability","probability",0,100,0,0,"%")
+  params:set_action("probability",update_parameters)
+  params:add{type="option",id="scale_mode",name="scale mode",
+    options=scale_names,default=5,
+  action=function() build_scale() end}
+  params:set_action("scale_mode",update_parameters)
+  params:add{type="number",id="root_note",name="root note",
+    min=0,max=127,default=60,formatter=function(param) return MusicUtil.note_num_to_name(param:get(),true) end,
+  action=function() build_scale() end}
+  params:set_action("root_note",update_parameters)
+  params:add_taper("min length","min length",0,16,0,0,"beats")
+  params:set_action("min length",update_parameters)
+  params:add_taper("max length","max length",0,16,16,0,"beats")
+  params:set_action("max length",update_parameters)
   
   params:read(_path.data..'piwip/'.."piwip.pset")
   
@@ -599,6 +624,18 @@ function draw_waveform()
     screen.stroke()
   end
 end
+
+--
+-- harmonizer
+--
+function build_scale()
+  s.notes=MusicUtil.generate_scale_of_length(params:get("root_note"),params:get("scale_mode"),16)
+  local num_to_add=16-#s.notes
+  for i=1,num_to_add do
+    table.insert(s.notes,s.notes[16-num_to_add])
+  end
+end
+
 --
 -- utils
 --
