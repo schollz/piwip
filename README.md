@@ -4,10 +4,11 @@ a sampler that works in realtime.
 
 ![screenshot](piwip.gif)
 
-my goal here was to make a sampler that plays back samples of your instrument while you are playing. that way, i can have a "autotune" for my bad trumpet playing (keeping monitor mode off). what this ended up being is a customizable sampler that should be able to do that, and more.
+my goal here was to make a sampler that plays back samples of an instrument while playing an instrument. that way, i can have a "autotune" for my bad trumpet playing - e.g. turning off the monitor and sequencing with the notes i'm trying to play. 
 
 future directions:
 
+- add volume control
 - fix bugs
 
 ### Requirements
@@ -25,19 +26,25 @@ future directions:
 - E2/E3 trims sample
 
 
-**quick start:** plug in midi and audio source. turn E1 to "sampler". press K2 to arm. then play audio. now you can play it back on your midi source.
+**quick start:** plug in midi keyboard and audio source. turn E1 to "sampler". press K2 to arm or K3 to directly record. then play audio. now you can play it back on your midi source.
 
-there are a number of customizable parameters in the global m enu. currently there are two presets (E1 toggles):
+there are a number of customizable parameters in the global menu. currently there are two presets (E1 toggles):
 
 - "sampler": generic sampler. record once and then midi notes are shifted by a constant amount (relative to middle c).
 - "follower": sample in realtime. playing midi during recording will try to play notes near the leading edge, using a realtime pitch-detector to correctly pitch shift.
 
-i'm sure there are other interesting combos.
+i'm sure there are other interesting combos. here is a quick rundown of some parameters:
+
+- `rec thresh`: lower to more easily trigger recording when armed
+- `silence to stop`: recording after armed stops after this much silence
+- `min recorded`: is the amount recorded before midi playback is possible
+- `playback reference`: determines how pitch adjustment works
 
 
 
 ## demo 
 
+<p align="center"><a href="https://www.instagram.com/p/X/"><img src="https://user-images.githubusercontent.com/6550035/94328978-fed24c80-ff6b-11ea-8a8f-3b2c6f5c9e91.png" alt="Demo of playing" width=80%></a></p>
 
 ## my other norns scripts
 
