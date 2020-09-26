@@ -1,7 +1,7 @@
 -- piwip v0.1.0
--- plays instrument
+-- play instruments
 -- while
--- instrument plays
+-- instruments play
 --
 -- llllllll.co/t/piwip
 --
