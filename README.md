@@ -2,7 +2,7 @@
 
 a sampler that works in realtime.
 
-![screenshot]()
+![screenshot](piwip.gif)
 
 my goal here was to make a sampler that plays back samples of your instrument while you are playing. that way, i can have a "autotune" for my bad trumpet playing (keeping monitor mode off). what this ended up being is a customizable sampler that should be able to do that, and more.
 
