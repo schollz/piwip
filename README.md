@@ -48,7 +48,7 @@ i'm sure there are other interesting combos. here is a quick rundown of some par
 
 ## demo 
 
-<p align="center"><a href="https://www.instagram.com/p/X/"><img src="https://user-images.githubusercontent.com/6550035/94328978-fed24c80-ff6b-11ea-8a8f-3b2c6f5c9e91.png" alt="Demo of playing" width=80%></a></p>
+<p align="center"><a href="https://www.instagram.com/p/CFla2iJh9zC/"><img src="https://user-images.githubusercontent.com/6550035/94328978-fed24c80-ff6b-11ea-8a8f-3b2c6f5c9e91.png" alt="Demo of playing" width=80%></a></p>
 
 ## my other norns scripts
 
