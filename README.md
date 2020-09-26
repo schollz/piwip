@@ -1,10 +1,10 @@
 ## piwip
 
-play instruments while instruments play.
+a sampler that works in realtime.
 
 ![screenshot]()
 
-this script was inspired by the old-school auto-tuning where tapes were pitch shifted by varispeed tape-decks. use *piwip* play an instrument through line-in and then add have a midi keyboard/sequencer to play notes, in realtime. the notes will be "played" from the underlying tape by pitching up/down through speed changes relative to the known recorded pitch at each position on the tape.
+my goal here was to make a sampler that plays back samples of your instrument while you are playing. that way, i can have a "autotune" for my bad trumpet playing (keeping monitor mode off). what this ended up being is a customizable sampler that should be able to do that, and more.
 
 future directions:
 
@@ -18,26 +18,21 @@ future directions:
 
 ### Documentation
 
-#### sampler 
+- K2 arms recording
+- K3 forces recording
+- K1+K2 toggles monitor
+- E1 activates presets
+- E2/E3 trims sample
 
-- live follow: off 
-- keep armed: no
-- playback reference: 440
-- only play during rec: no
 
-#### "live voice"
+**quick start:** plug in midi and audio source. turn E1 to "sampler". press K2 to arm. then play audio. now you can play it back on your midi source.
 
-- live follow: off
-- keep armed: yes 
-- playback reference: median
-- "only play during rec": yes
+there are a number of customizable parameters in the global m enu. currently there are two presets (E1 toggles):
 
-#### "live instrument":
+- "sampler": generic sampler. record once and then midi notes are shifted by a constant amount (relative to middle c).
+- "follower": sample in realtime. playing midi during recording will try to play notes near the leading edge, using a realtime pitch-detector to correctly pitch shift.
 
-- live follow: on
-- keep armed: yes 
-- playback reference: realtime
-- "only play during rec": yes
+i'm sure there are other interesting combos.
 
 
 

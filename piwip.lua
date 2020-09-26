@@ -1,13 +1,17 @@
 -- piwip v0.1.0
--- ?
+-- a realtime sampler
 --
--- llllllll.co/t/?
+-- llllllll.co/t/piwip
 --
 --
 --
 --    ▼ instructions below ▼
 --
--- ?
+-- K2 arms recording
+-- K3 forces recording
+-- K1+K2 toggles monitor
+-- E1 activates presets
+-- E2/E3 trims sample
 
 -- state variable
 s={
@@ -25,7 +29,7 @@ s={
   mode=0,
   mode_name="",
   shift=false,
-  monitor=false,
+  monitor=true,
   message="",
 }
 
