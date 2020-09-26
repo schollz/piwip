@@ -1,17 +1,13 @@
 -- piwip v0.1.0
--- a realtime sampler
+-- ?
 --
--- llllllll.co/t/piwip
+-- llllllll.co/t/?
 --
 --
 --
 --    ▼ instructions below ▼
 --
--- K2 arms recording
--- K3 forces recording
--- K1+K2 toggles monitor
--- E1 activates presets
--- E2/E3 trims sample
+-- ?
 
 -- state variable
 s={
@@ -29,7 +25,7 @@ s={
   mode=0,
   mode_name="",
   shift=false,
-  monitor=true,
+  monitor=false,
   message="",
 }
 
@@ -245,7 +241,7 @@ function update_main()
       end
       softcut.position(i,s.v[i].position)
       softcut.play(i,1)
-      softcut.level(i,0.5)
+      softcut.level(i,1)
     end
     
     -- update the rate to match correctly modulate upcoming pitch
@@ -436,7 +432,7 @@ function enc(n,d)
       s.mode_name="follower"
       params:set("live follow",2)
       params:set("keep armed",2)
-      params:set("silence to stop",100)
+      params:set("silence to stop",200)
       params:set("playback reference",3)
       params:set("only play during rec",2)
       params:set("notes start at 0",1)
