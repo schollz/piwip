@@ -39,7 +39,11 @@ i'm sure there are other interesting combos. here is a quick rundown of some par
 - `silence to stop`: recording after armed stops after this much silence
 - `min recorded`: is the amount recorded before midi playback is possible
 - `playback reference`: determines how pitch adjustment works
-
+- `live follow`: starts notes behind the latest sample
+- `keep armed`: re-arms recording if recorded stops
+- `only play during rec`: sequenced notes only emit during recording
+- `midi during rec`: use to disable midi during recording
+- `notes start at 0`: start notes at 0 or from where they last were
 
 
 ## demo 
