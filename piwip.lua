@@ -1,13 +1,17 @@
 -- piwip v0.1.0
--- ?
+-- plays instrument
+-- while
+-- instrument plays
 --
--- llllllll.co/t/?
---
---
+-- llllllll.co/t/piwip
 --
 --    ▼ instructions below ▼
 --
--- ?
+-- K2 arms recording
+-- K3 forces recording
+-- K1+K2 toggles monitor
+-- E1 activates presets
+-- E2/E3 trims sample
 
 -- state variable
 s={
