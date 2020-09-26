@@ -59,6 +59,7 @@ function init()
   for i=1,6 do
     s.v[i]={}
     s.v[i].position=0
+    s.v[i].last_position=0
     s.v[i].midi=0 -- target midi note
     s.v[i].freq=0 -- current frequency
     s.v[i].ref_freq=0 -- target frequency
@@ -124,8 +125,8 @@ function init()
     softcut.loop(i,1)
     
     softcut.fade_time(i,0.2)
-    softcut.level_slew_time(i,params:get("resolution")/1000*10)
-    softcut.rate_slew_time(i,params:get("resolution")/1000*0.25)
+    softcut.level_slew_time(i,2)
+    softcut.rate_slew_time(i,params:get("resolution")/1000/10)
     
     softcut.buffer(i,1)
     softcut.position(i,0)
@@ -147,6 +148,7 @@ function update_positions(i,x)
   if i==1 and s.recording then
     s.loop_end=x
   end
+  s.v[i].last_position=s.v[i].position
   s.v[i].position=x
   if s.v[i].midi>0 then
     s.update_ui=true
@@ -162,6 +164,7 @@ function update_freq(f)
     else
       s.freqs[current_position]=f
     end
+    print("current_position: "..current_position..", f: "..s.freqs[current_position])
     s.median_frequency=median(s.freqs)
   end
 end
@@ -192,9 +195,8 @@ function update_main()
     
     -- make sure its bounded by recorded material
     -- and biased by the current bias
-    print(s.v[i].loop_bias[1],s.loop_bias[1],s.v[i].loop_bias[2],s.loop_bias[2])
     if s.v[i].started==false or s.loop_end~=s.v[i].loop_end or s.v[i].loop_bias[1]~=s.loop_bias[1] or s.v[i].loop_bias[2]~=s.loop_bias[2] then
-      print("voice "..i.." updating loop points")
+      -- print("voice "..i.." updating loop points")
       s.v[i].loop_bias={s.loop_bias[1],s.loop_bias[2]}
       s.v[i].loop_end=s.loop_end
       softcut.loop_end(i,s.loop_end-s.loop_bias[2])
@@ -209,14 +211,18 @@ function update_main()
       -- determine from realtime frequencies
       -- modulate the voice's rate to match upcoming pitch
       -- find the closest pitch
-      ref_freq=s.median_frequency
-      for j=1,20 do
-        next_position=get_position(i)+j*params:get("resolution")/1000
-        if s.freqs[next_position]~=nil then
-          ref_freq=s.freqs[next_position]
-          break
-        end
-      end
+      -- values={}
+      -- for j=0,1,0.1 do
+      --   next_position=s.v[i].position+j*(s.v[i].position-s.v[i].last_position)
+      --   index,f=nearest_value(s.freqs,next_position)
+      --   table.insert(values,f)
+      --   print(f)
+      -- end
+      -- ref_freq=median(values)
+      -- print("next_position: "..next_position)
+      -- print("index: "..index)
+      -- print("ref_freq: "..ref_freq)
+      index,ref_freq=nearest_value(s.freqs,s.v[i].position+params:get("resolution")/1000*2)
     else
       -- middle c
       ref_freq=261.63
@@ -235,12 +241,13 @@ function update_main()
       end
       softcut.position(i,s.v[i].position)
       softcut.play(i,1)
-      softcut.level(i,1)
+      softcut.level(i,0.5)
     end
     
     -- update the rate to match correctly modulate upcoming pitch
-    if s.v[i].ref_freq~=ref_freq then
+    if s.v[i].ref_freq~=ref_freq and ref_freq~=nil then
       s.v[i].ref_freq=ref_freq
+      -- print("ref_freq: "..ref_freq)
       softcut.rate(i,s.v[i].freq/s.v[i].ref_freq)
     end
     ::continue::
@@ -249,10 +256,6 @@ end
 
 function rec_start()
   print("init recording")
-  if s.mode==1 then
-    s.monitor=true
-    s.monitor_update=true
-  end
   -- reset positions of all current notes
   for i=2,6 do
     softcut.position(i,s.loop_bias[1])
@@ -301,9 +304,17 @@ function rec_stop()
   if params:get("keep armed")==1 then
     s.armed=false
   end
-  if s.mode==1 then
-    s.monitor=false
-    s.monitor_update=true
+  if params:get("only play during rec")==2 then
+    -- shtudown notes
+    for i=2,6 do
+      if s.v[i].midi>0 then
+        print("voice "..i.." off")
+        softcut.level(i,0)
+        s.v[i].midi=0
+        s.v[i].freq=0
+        s.v[i].started=false
+      end
+    end
   end
 end
 
@@ -357,7 +368,6 @@ function update_midi(data)
       if s.v[i].midi==msg.note then
         print("voice "..i.." "..msg.note.." off")
         softcut.level(i,0)
-        softcut.play(i,0)
         s.v[i].midi=0
         s.v[i].freq=0
         s.v[i].started=false
@@ -400,16 +410,6 @@ function key(n,z)
   s.update_ui=true
 end
 
-function mode_sampler()
-  s.mode_name="sampler"
-  params:set("live follow",1)
-  params:set("keep armed",1)
-  params:set("playback reference",1)
-  params:set("only play during rec",1)
-  params:set("notes start at 0",2)
-  params:set("midi during rec",1)
-end
-
 function enc(n,d)
   if n==1 then
     if s.mode==0 then
@@ -420,31 +420,24 @@ function enc(n,d)
       s.mode_name=""
       params:read(_path.data..'piwip/'.."piwip_temp.pset")
     elseif s.mode==1 then
-      mode_sampler()
-    elseif s.mode==2 then
-      s.mode_name="live voice"
+      s.mode_name="sampler"
       params:set("live follow",1)
-      params:set("keep armed",2)
-      params:set("playback reference",2)
-      params:set("only play during rec",2)
+      params:set("keep armed",1)
+      params:set("playback reference",1)
+      params:set("only play during rec",1)
       params:set("notes start at 0",2)
-      params:set("midi during rec",2)
-    elseif s.mode==3 then
-      s.mode_name="live instrument"
+      params:set("midi during rec",1)
+      s.armed=true
+    elseif s.mode==2 then
+      s.mode_name="follower"
       params:set("live follow",2)
       params:set("keep armed",2)
+      params:set("silence to stop",100)
       params:set("playback reference",3)
-      params:set("only play during rec",1)
+      params:set("only play during rec",2)
       params:set("notes start at 0",1)
       params:set("midi during rec",2)
-    elseif s.mode==4 then
-      s.mode_name="weird sampler"
-      params:set("live follow",2)
-      params:set("keep armed",2)
-      params:set("playback reference",3)
-      params:set("only play during rec",1)
-      params:set("notes start at 0",1)
-      params:set("midi during rec",2)
+      s.armed=true
     end
   elseif n==2 then
     s.loop_bias[1]=util.clamp(s.loop_bias[1]+d/100,0,s.loop_end-s.loop_bias[2])
@@ -460,23 +453,23 @@ function redraw()
   s.update_ui=false
   screen.clear()
   
-  screen.move(3,60)
-  screen.level(15)
-  screen.text(s.mode_name)
+  shift=0
+  if s.shift then
+    shift=5
+  end
   
   if s.recording then
     screen.level(15)
-    screen.rect(108,1,20,10)
+    screen.rect(108-shift,1+shift,20,10)
     screen.stroke()
-    screen.move(111,8)
+    screen.move(111-shift,8+shift)
     screen.text("REC")
-  end
-  if s.armed then
-    screen.level(15)
-    screen.rect(8,1,20,10)
+  elseif s.armed then
+    screen.level(1)
+    screen.rect(108-shift,1+shift,20,10)
     screen.stroke()
-    screen.move(11,8)
-    screen.text("ARM")
+    screen.move(111-shift,8+shift)
+    screen.text("RDY")
   end
   
   screen.level(15)
@@ -491,6 +484,10 @@ function redraw()
     draw_waveform()
   end
   
+  screen.move(3+shift,60-shift)
+  screen.level(15)
+  screen.text(s.mode_name)
+  
   if s.message~="" then
     screen.level(0)
     x=64
@@ -504,6 +501,7 @@ function redraw()
     screen.move(x,y+7)
     screen.text_center(s.message)
   end
+  
   screen.update()
 end
 
@@ -670,4 +668,36 @@ function show_message(message)
     s.message=""
     redraw()
   end)
+end
+
+function nearest_value(t,number)
+  local best_diff=10000
+  local closet_index=1
+  for i,y in pairs(t) do
+    local d=math.abs(number-i)
+    if d<best_diff then
+      best_diff=d
+      closet_index=i
+    end
+  end
+  return closet_index,t[closet_index]
+end
+
+function quantile(t,q)
+  assert(t~=nil,"No table provided to quantile")
+  assert(q>=0 and q<=1,"Quantile must be between 0 and 1")
+  table.sort(t)
+  local position=#t*q+0.5
+  local mod=position%1
+  
+  if position<1 then
+    return t[1]
+  elseif position>#t then
+    return t[#t]
+  elseif mod==0 then
+    return t[position]
+  else
+    return mod*t[math.ceil(position)]+
+    (1-mod)*t[math.floor(position)]
+  end
 end
