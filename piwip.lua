@@ -69,7 +69,7 @@ function init()
   params:set_action("only play during rec",update_parameters)
   params:add_option("midi during rec","midi during rec",{"disabled","enabled"},1)
   params:set_action("midi during rec",update_parameters)
-  params:add_taper("notes vol","notes vol",10,1000,60,0,"ms")
+  params:add_taper("notes vol","notes vol",0,10,1,0)
   params:set_action("notes vol",update_vol)
   
   params:add_group("harmonizer",5)
@@ -178,9 +178,10 @@ end
 -- updaters
 --
 function update_vol(x)
-  params:set("notes vol",util.clamp(x,0,1))
   for i=2,6 do
-    softcut.level(i,params:get("notes vol"))
+    if s.v[i].midi>0 then
+      softcut.level(i,util.clamp(x*params:get("root_note")/s.v[i].midi,0,1))
+    end
   end
 end
 
@@ -317,7 +318,7 @@ function update_main()
       end
       softcut.position(i,s.v[i].position)
       softcut.play(i,1)
-      softcut.level(i,params:get("notes vol"))
+      update_vol(params:get("notes vol"))
     end
     
     -- update the rate to match correctly modulate upcoming pitch
@@ -430,23 +431,24 @@ end
 -- playing/stopping notes
 --
 function note_play(note)
-  if params:get("only play during rec")==2 and not s.recording then
-    do return false end
-  end
-  if params:get("midi during rec")==1 and (s.recording or s.armed) then
-    do return false end
-  end
   -- find first available voice and turn it on
   -- it will be initialized in update_main
   played=false
-  for i=2,6 do
-    if s.v[i].midi==0 then
-      print("voice "..i.." "..note.." on")
-      s.v[i].midi=note
-      s.v[i].freq=midi_to_hz(note)
-      s.v[i].ref_freq=0
-      played=true
-      break
+  if params:get("only play during rec")==2 and not s.recording then
+    -- do nothing
+  elseif params:get("midi during rec")==1 and (s.recording or s.armed) then
+    -- do nothing
+  else
+    -- try playing note
+    for i=2,6 do
+      if s.v[i].midi==0 then
+        print("voice "..i.." "..note.." on")
+        s.v[i].midi=note
+        s.v[i].freq=midi_to_hz(note)
+        s.v[i].ref_freq=0
+        played=true
+        break
+      end
     end
   end
   return played
@@ -454,7 +456,7 @@ end
 
 function note_stop(note)
   -- turn off any voices on that note
-  print("stopping "..note)
+  -- print("stopping "..note)
   for i=2,6 do
     if s.v[i].midi==note then
       print("voice "..i.." "..note.." off")
@@ -505,7 +507,7 @@ end
 
 function enc(n,d)
   if s.shift and n==1 then
-    update_vol(util.clamp(params:get("notes vol")+d/100,0,1))
+    params:set("notes vol",util.clamp(params:get("notes vol")+d/100,0,10))
   elseif n==1 then
     if s.mode==0 then
       params:write(_path.data..'piwip/'.."piwip_temp.pset")
@@ -695,10 +697,10 @@ end
 -- harmonizer
 --
 function build_scale()
-  s.notes=MusicUtil.generate_scale_of_length(params:get("root_note"),params:get("scale_mode"),24)
-  local num_to_add=24-#s.notes
+  s.notes=MusicUtil.generate_scale_of_length(params:get("root_note"),params:get("scale_mode"),20)
+  local num_to_add=20-#s.notes
   for i=1,num_to_add do
-    table.insert(s.notes,s.notes[24-num_to_add])
+    table.insert(s.notes,s.notes[20-num_to_add])
   end
 end
 
