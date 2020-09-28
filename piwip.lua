@@ -47,6 +47,7 @@ function init()
   end
   
   params:add_separator("piwip")
+  params:add_group("recording",4)
   params:add_taper("resolution","resolution",10,200,50,0,"ms")
   params:set_action("resolution",update_parameters)
   params:add_control("rec thresh","rec thresh",controlspec.new(1,100,'exp',1,20,'amp/1k'))
@@ -55,6 +56,10 @@ function init()
   params:set_action("silence to stop",update_parameters)
   params:add_control("vol pinch","vol pinch",controlspec.new(0,1000,'lin',1,500,'ms'))
   params:set_action("vol pinch",update_parameters)
+  
+  params:add_group("playback",8)
+  params:add_taper("notes vol","notes vol",0,10,1,0)
+  params:set_action("notes vol",update_vol)
   params:add_taper("min recorded","min recorded",10,1000,60,0,"ms")
   params:set_action("min recorded",update_parameters)
   params:add_option("notes start at 0","notes start at 0",{"no","yes"},1)
@@ -69,18 +74,16 @@ function init()
   params:set_action("only play during rec",update_parameters)
   params:add_option("midi during rec","midi during rec",{"disabled","enabled"},1)
   params:set_action("midi during rec",update_parameters)
-  params:add_taper("notes vol","notes vol",0,10,1,0)
-  params:set_action("notes vol",update_vol)
   
   params:add_group("harmonizer",5)
   params:add_taper("probability","probability",0,100,50,0,"%")
   params:set_action("probability",update_parameters)
   params:add{type="option",id="scale_mode",name="scale mode",
     options=s.scale_names,default=5,
-  action=function() build_scale() end}
+  action=function() build_scale();update_parameters() end}
   params:add{type="number",id="root_note",name="root note",
     min=0,max=127,default=38,formatter=function(param) return MusicUtil.note_num_to_name(param:get(),true) end,
-  action=function() build_scale() end}
+  action=function() build_scale();update_parameters() end}
   params:add_control("min length","min length",controlspec.new(1,16,'lin',1,1,'beats'))
   params:set_action("min length",update_parameters)
   params:add_control("max length","max length",controlspec.new(1,16,'lin',1,4,'beats'))
