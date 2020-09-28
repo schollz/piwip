@@ -76,7 +76,7 @@ function init()
   params:set_action("midi during rec",update_parameters)
   
   params:add_group("harmonizer",5)
-  params:add_taper("probability","probability",0,100,50,0,"%")
+  params:add_taper("probability","probability",0,100,0,0,"%")
   params:set_action("probability",update_parameters)
   params:add{type="option",id="scale_mode",name="scale mode",
     options=s.scale_names,default=5,
