@@ -1,4 +1,4 @@
--- piwip v0.1.0
+-- piwip v0.2.0
 -- play instruments
 -- while
 -- instruments play
@@ -12,6 +12,8 @@
 -- K1+K2 toggles monitor
 -- E1 activates presets
 -- E2/E3 trims sample
+
+MusicUtil=require "musicutil"
 
 -- state variable
 s={
@@ -31,9 +33,19 @@ s={
   shift=false,
   monitor=false,
   message="",
+  scale_names={},
+  notes={},
+  ready=false,
+  current_beat=0,
+  current_note=0,
 }
 
+-- constants
 function init()
+  for i=1,#MusicUtil.SCALES do
+    table.insert(s.scale_names,string.lower(MusicUtil.SCALES[i].name))
+  end
+  
   params:add_separator("piwip")
   params:add_taper("resolution","resolution",10,200,50,0,"ms")
   params:set_action("resolution",update_parameters)
@@ -57,6 +69,22 @@ function init()
   params:set_action("only play during rec",update_parameters)
   params:add_option("midi during rec","midi during rec",{"disabled","enabled"},1)
   params:set_action("midi during rec",update_parameters)
+  params:add_taper("notes vol","notes vol",0,10,1,0)
+  params:set_action("notes vol",update_vol)
+  
+  params:add_group("harmonizer",5)
+  params:add_taper("probability","probability",0,100,50,0,"%")
+  params:set_action("probability",update_parameters)
+  params:add{type="option",id="scale_mode",name="scale mode",
+    options=s.scale_names,default=5,
+  action=function() build_scale() end}
+  params:add{type="number",id="root_note",name="root note",
+    min=0,max=127,default=38,formatter=function(param) return MusicUtil.note_num_to_name(param:get(),true) end,
+  action=function() build_scale() end}
+  params:add_control("min length","min length",controlspec.new(1,16,'lin',1,1,'beats'))
+  params:set_action("min length",update_parameters)
+  params:add_control("max length","max length",controlspec.new(1,16,'lin',1,4,'beats'))
+  params:set_action("max length",update_parameters)
   
   params:read(_path.data..'piwip/'.."piwip.pset")
   
@@ -138,11 +166,25 @@ function init()
     softcut.phase_quant(i,params:get("resolution")/1000/2)
   end
   
+  build_scale()
+  
+  clock.run(function()
+    clock.sleep(0.5)
+    s.ready=true
+  end)
 end
 
 --
 -- updaters
 --
+function update_vol(x)
+  for i=2,6 do
+    if s.v[i].midi>0 then
+      softcut.level(i,util.clamp(x*params:get("root_note")/s.v[i].midi,0,1))
+    end
+  end
+end
+
 function update_parameters(x)
   params:write(_path.data..'piwip/'.."piwip.pset")
 end
@@ -168,7 +210,7 @@ function update_freq(f)
     else
       s.freqs[current_position]=f
     end
-    print("current_position: "..current_position..", f: "..s.freqs[current_position])
+    -- print("current_position: "..current_position..", f: "..s.freqs[current_position])
     s.median_frequency=median(s.freqs)
   end
 end
@@ -180,6 +222,37 @@ end
 function update_main()
   if s.update_ui then
     redraw()
+  end
+  if math.floor(clock.get_beats())~=s.current_beat and params:get("probability")>0 then
+    -- randomize notes
+    s.current_beat=math.floor(clock.get_beats())
+    if math.random()*100<params:get("probability") then
+      -- play a random note
+      available_notes={}
+      median_note=MusicUtil.freq_to_note_num(s.median_frequency)
+      -- print("median_note "..median_note)
+      -- print("s.median_frequency "..s.median_frequency)
+      for k,v in pairs(s.notes) do
+        
+        table.insert(available_notes,v)
+        -- if v<median_note then
+        --   table.insert(available_notes,v)
+        -- end
+      end
+      if #available_notes>0 then
+        clock.run(function()
+          local note=available_notes[math.random(#available_notes)]
+          local num_beats=math.random(params:get("min length"),params:get("max length"))
+          local played=note_play(note)
+          print(played)
+          if played then
+            print("playing "..note.." for "..num_beats.." beats")
+            clock.sync(num_beats)
+            note_stop(note)
+          end
+        end)
+      end
+    end
   end
   if s.monitor_update then
     s.monitor_update=false
@@ -245,7 +318,7 @@ function update_main()
       end
       softcut.position(i,s.v[i].position)
       softcut.play(i,1)
-      softcut.level(i,1)
+      update_vol(params:get("notes vol"))
     end
     
     -- update the rate to match correctly modulate upcoming pitch
@@ -348,34 +421,49 @@ end
 function update_midi(data)
   msg=midi.to_msg(data)
   if msg.type=='note_on' then
-    if params:get("only play during rec")==2 and not s.recording then
-      do return end
+    note_play(msg.note)
+  elseif msg.type=='note_off' then
+    note_stop(msg.note)
+  end
+end
 
-    end
-    if params:get("midi during rec")==1 and (s.recording or s.armed) then
-      do return end
-    end
-    -- find first available voice and turn it on
-    -- it will be initialized in update_main
+--
+-- playing/stopping notes
+--
+function note_play(note)
+  -- find first available voice and turn it on
+  -- it will be initialized in update_main
+  played=false
+  if params:get("only play during rec")==2 and not s.recording then
+    -- do nothing
+  elseif params:get("midi during rec")==1 and (s.recording or s.armed) then
+    -- do nothing
+  else
+    -- try playing note
     for i=2,6 do
       if s.v[i].midi==0 then
-        print("voice "..i.." "..msg.note.." on")
-        s.v[i].midi=msg.note
-        s.v[i].freq=midi_to_hz(msg.note)
+        print("voice "..i.." "..note.." on")
+        s.v[i].midi=note
+        s.v[i].freq=midi_to_hz(note)
         s.v[i].ref_freq=0
+        played=true
         break
       end
     end
-  elseif msg.type=='note_off' then
-    -- turn off any voices on that note
-    for i=2,6 do
-      if s.v[i].midi==msg.note then
-        print("voice "..i.." "..msg.note.." off")
-        softcut.level(i,0)
-        s.v[i].midi=0
-        s.v[i].freq=0
-        s.v[i].started=false
-      end
+  end
+  return played
+end
+
+function note_stop(note)
+  -- turn off any voices on that note
+  -- print("stopping "..note)
+  for i=2,6 do
+    if s.v[i].midi==note then
+      print("voice "..i.." "..note.." off")
+      softcut.level(i,0)
+      s.v[i].midi=0
+      s.v[i].freq=0
+      s.v[i].started=false
     end
   end
 end
@@ -385,6 +473,9 @@ end
 --
 
 function key(n,z)
+  if not s.ready then
+    do return end
+  end
   if n==1 then
     if z==1 then
       s.shift=true
@@ -415,7 +506,9 @@ function key(n,z)
 end
 
 function enc(n,d)
-  if n==1 then
+  if s.shift and n==1 then
+    params:set("notes vol",util.clamp(params:get("notes vol")+d/100,0,10))
+  elseif n==1 then
     if s.mode==0 then
       params:write(_path.data..'piwip/'.."piwip_temp.pset")
     end
@@ -599,6 +692,18 @@ function draw_waveform()
     screen.stroke()
   end
 end
+
+--
+-- harmonizer
+--
+function build_scale()
+  s.notes=MusicUtil.generate_scale_of_length(params:get("root_note"),params:get("scale_mode"),20)
+  local num_to_add=20-#s.notes
+  for i=1,num_to_add do
+    table.insert(s.notes,s.notes[20-num_to_add])
+  end
+end
+
 --
 -- utils
 --
