@@ -8,12 +8,12 @@ my goal here was to make a sampler that plays back samples of an instrument whil
 
 future directions:
 
-- add volume control
+- add crow support
 - fix bugs
 
 ### Requirements
 
-- midi input
+- midi input (optional)
 - audio input
 - norns
 
@@ -26,7 +26,11 @@ future directions:
 - E2/E3 trims sample
 
 
-**quick start:** plug in midi keyboard and audio source. turn E1 to "sampler". press K2 to arm or K3 to directly record. then play audio. now you can play it back on your midi source.
+**quick start:** 
+
+- *sampling*: plug in midi keyboard and audio source. turn E1 to "sampler". press K2 to arm or K3 to directly record. then play audio. now you can play it back on your midi source.
+- *random harmony*: turn E1 to "follower". change `harmonizer -> probability` to `100%`. change the scale and root note to your preference. then press K2 to arm and play a sound through the input.
+
 
 there are a number of customizable parameters in the global menu. currently there are two presets (E1 toggles):
 
@@ -35,15 +39,15 @@ there are a number of customizable parameters in the global menu. currently ther
 
 i'm sure there are other interesting combos. here is a quick rundown of some parameters:
 
-- `rec thresh`: lower to more easily trigger recording when armed
-- `silence to stop`: recording after armed stops after this much silence
-- `min recorded`: is the amount recorded before midi playback is possible
-- `playback reference`: determines how pitch adjustment works
-- `live follow`: starts notes behind the latest sample
-- `keep armed`: re-arms recording if recorded stops
-- `only play during rec`: sequenced notes only emit during recording
-- `midi during rec`: use to disable midi during recording
-- `notes start at 0`: start notes at 0 or from where they last were
+- `recording->rec thresh`: lower to more easily trigger recording when armed
+- `recording->silence to stop`: recording after armed stops after this much silence
+- `playback->min recorded`: is the amount recorded before note playback is possible
+- `playback->playback reference`: determines how pitch adjustment works
+- `playback->live follow`: starts notes behind the latest sample
+- `playback->keep armed`: re-arms recording if recorded stops
+- `playback->only play during rec`: sequenced notes only emit during recording
+- `playback->midi during rec`: use to disable midi during recording
+- `playback->notes start at 0`: start notes at 0 or from where they last were
 
 
 ## demo 
