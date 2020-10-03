@@ -38,6 +38,7 @@ s={
   ready=false,
   current_beat=0,
   current_note=0,
+  num_voices_playing=0,
 }
 
 -- constants
@@ -93,7 +94,9 @@ function init()
   params:add_option("ensembler","ensembler",{"off","on"},1)
   params:set_action("ensembler",update_parameters)
   params:add_control("voices","voices",controlspec.new(1,5,'lin',1,5,''))
-  params:add_taper("spread","spread",0,2,0,0,"%")
+  params:set_action("voices",update_parameters)
+  params:add_taper("spread","spread",0,100,0,0,"%")
+  params:set_action("spread",update_parameters)
   
   params:read(_path.data..'piwip/'.."piwip.pset")
   
@@ -232,6 +235,25 @@ function update_main()
   if s.update_ui then
     redraw()
   end
+  -- activate ensemble playing
+  if params:get("ensembler")==2 then
+    if s.recording and s.num_voices_playing<params:get("voices") then
+      print("s.num_voices_playing: "..s.num_voices_playing)
+      s.num_voices_playing=s.num_voices_playing+1
+      clock.run(function()
+        local sleep_time=math.random()*0.2
+        print("sleeping for "..sleep_time)
+        clock.sleep(sleep_time)
+        note_play(160) -- set arbitrary note
+      end)
+    elseif s.num_voices_playing>0 and s.recording==false then
+      for i=2,6 do
+        note_stop(160)
+      end
+      s.num_voices_playing=0
+    end
+  end
+  -- activate harmonizer
   if math.floor(clock.get_beats())~=s.current_beat and params:get("probability")>0 then
     -- randomize notes
     s.current_beat=math.floor(clock.get_beats())
@@ -253,7 +275,6 @@ function update_main()
           local note=available_notes[math.random(#available_notes)]
           local num_beats=math.random(params:get("min length"),params:get("max length"))
           local played=note_play(note)
-          print(played)
           if played then
             print("playing "..note.." for "..num_beats.." beats")
             clock.sync(num_beats)
@@ -331,7 +352,9 @@ function update_main()
     end
     
     -- update the rate to match correctly modulate upcoming pitch
-    if s.v[i].ref_freq~=ref_freq and ref_freq~=nil then
+    if s.v[i].midi==160 then
+      softcut.rate(i,1-params:get("spread")/100*math.random()) -- TODO: add modulation to the rates
+    elseif s.v[i].ref_freq~=ref_freq and ref_freq~=nil then
       s.v[i].ref_freq=ref_freq
       -- print("ref_freq: "..ref_freq)
       softcut.rate(i,s.v[i].freq/s.v[i].ref_freq)
@@ -445,8 +468,10 @@ function note_play(note)
   played=false
   if params:get("only play during rec")==2 and not s.recording then
     -- do nothing
+    print("can only play during rec")
   elseif params:get("midi during rec")==1 and (s.recording or s.armed) then
     -- do nothing
+    print("midi not during rec")
   else
     -- try playing note
     for i=2,6 do
