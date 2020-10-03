@@ -241,7 +241,7 @@ function update_main()
       print("s.num_voices_playing: "..s.num_voices_playing)
       s.num_voices_playing=s.num_voices_playing+1
       clock.run(function()
-        local sleep_time=math.random()*0.2
+        local sleep_time=math.random()*0.8
         print("sleeping for "..sleep_time)
         clock.sleep(sleep_time)
         note_play(160) -- set arbitrary note
