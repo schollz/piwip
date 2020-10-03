@@ -89,6 +89,12 @@ function init()
   params:add_control("max length","max length",controlspec.new(1,16,'lin',1,4,'beats'))
   params:set_action("max length",update_parameters)
   
+  params:add_group("ensembler",3)
+  params:add_option("ensembler","ensembler",{"off","on"},1)
+  params:set_action("ensembler",update_parameters)
+  params:add_control("voices","voices",controlspec.new(1,5,'lin',1,5,''))
+  params:add_taper("spread","spread",0,2,0,0,"%")
+  
   params:read(_path.data..'piwip/'.."piwip.pset")
   
   for i=1,6 do
