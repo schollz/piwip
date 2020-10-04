@@ -90,13 +90,15 @@ function init()
   params:add_control("max length","max length",controlspec.new(1,16,'lin',1,4,'beats'))
   params:set_action("max length",update_parameters)
   
-  params:add_group("ensembler",3)
+  params:add_group("ensembler",4)
   params:add_option("ensembler","ensembler",{"off","on"},1)
   params:set_action("ensembler",update_parameters)
   params:add_control("voices","voices",controlspec.new(1,5,'lin',1,5,''))
   params:set_action("voices",update_parameters)
-  params:add_taper("spread","spread",0,100,0,0,"%")
+  params:add_taper("spread","spread",0,100,0,0,"%/10")
   params:set_action("spread",update_parameters)
+  params:add_taper("time spread","time spread",0,10,0,0,"s")
+  params:set_action("time spread",update_parameters)
   
   params:read(_path.data..'piwip/'.."piwip.pset")
   
@@ -239,13 +241,15 @@ function update_main()
   if params:get("ensembler")==2 then
     if s.recording and s.num_voices_playing<params:get("voices") then
       print("s.num_voices_playing: "..s.num_voices_playing)
-      s.num_voices_playing=s.num_voices_playing+1
-      clock.run(function()
-        local sleep_time=math.random()*0.8
-        print("sleeping for "..sleep_time)
-        clock.sleep(sleep_time)
-        note_play(160) -- set arbitrary note
-      end)
+      for i=0,params:get("voices")-1 do
+        clock.run(function()
+          local sleep_time=math.random()*params:get("time spread")
+          print("sleeping for "..sleep_time)
+          clock.sleep(sleep_time)
+          note_play(160) -- set arbitrary note
+        end)
+        s.num_voices_playing=s.num_voices_playing+1
+      end
     elseif s.num_voices_playing>0 and s.recording==false then
       for i=2,6 do
         note_stop(160)
@@ -353,7 +357,7 @@ function update_main()
     
     -- update the rate to match correctly modulate upcoming pitch
     if s.v[i].midi==160 then
-      softcut.rate(i,1-params:get("spread")/100*math.random()) -- TODO: add modulation to the rates
+      softcut.rate(i,1+params:get("spread")/1000*2*(math.random()-0.5)) -- TODO: add modulation to the rates
     elseif s.v[i].ref_freq~=ref_freq and ref_freq~=nil then
       s.v[i].ref_freq=ref_freq
       -- print("ref_freq: "..ref_freq)
@@ -568,6 +572,22 @@ function enc(n,d)
       params:set("only play during rec",2)
       params:set("notes start at 0",1)
       params:set("midi during rec",2)
+      s.armed=true
+    elseif s.mode==3 then
+      s.mode_name="ensemble"
+      params:set("live follow",2)
+      params:set("keep armed",2)
+      params:set("silence to stop",500)
+      params:set("playback reference",3)
+      params:set("only play during rec",2)
+      params:set("notes start at 0",1)
+      params:set("midi during rec",2)
+      params:set("ensembler",2)
+      params:set("voices",5)
+      params:set("spread",15)
+      params:set("time spread",3)
+      params:set("notes vol",5)
+      params:set("min recorded",20)
       s.armed=true
     end
   elseif n==2 then
