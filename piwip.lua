@@ -53,7 +53,7 @@ function init()
   params:set_action("resolution",update_parameters)
   params:add_control("rec thresh","rec thresh",controlspec.new(1,100,'exp',1,20,'amp/1k'))
   params:set_action("rec thresh",update_parameters)
-  params:add_taper("silence to stop","silence to stop",10,500,200,0,"ms")
+  params:add_taper("silence to stop","silence to stop",10,5000,200,0,"ms")
   params:set_action("silence to stop",update_parameters)
   params:add_control("vol pinch","vol pinch",controlspec.new(0,1000,'lin',1,500,'ms'))
   params:set_action("vol pinch",update_parameters)
@@ -183,8 +183,12 @@ function init()
   build_scale()
   
   clock.run(function()
+    print("sleeping")
     clock.sleep(0.5)
+    print("ready")
     s.ready=true
+    update_vol(params:get("notes vol"))
+    print("set volume")
   end)
 end
 
@@ -192,9 +196,16 @@ end
 -- updaters
 --
 function update_vol(x)
+  if s.ready==false then
+    do return end
+  end
   for i=2,6 do
     if s.v[i].midi>0 then
-      softcut.level(i,util.clamp(x*params:get("root_note")/s.v[i].midi,0,1))
+      if params:get("probability")>0 then
+        softcut.level(i,util.clamp(x*params:get("root_note")/s.v[i].midi,0,1))
+      else
+        softcut.level(i,util.clamp(x,0,1))
+      end
     end
   end
 end
@@ -352,7 +363,7 @@ function update_main()
       end
       softcut.position(i,s.v[i].position)
       softcut.play(i,1)
-      update_vol(params:get("notes vol"))
+      softcut.level(i,params:get("notes vol"))
     end
     
     -- update the rate to match correctly modulate upcoming pitch
@@ -472,7 +483,7 @@ function note_play(note)
   played=false
   if params:get("only play during rec")==2 and not s.recording then
     -- do nothing
-    print("can only play during rec")
+    print("can only play during rec: "..params:get("only play during rec"))
   elseif params:get("midi during rec")==1 and (s.recording or s.armed) then
     -- do nothing
     print("midi not during rec")
@@ -578,16 +589,16 @@ function enc(n,d)
       params:set("live follow",2)
       params:set("keep armed",2)
       params:set("silence to stop",500)
-      params:set("playback reference",3)
+      params:set("playback reference",1)
       params:set("only play during rec",2)
-      params:set("notes start at 0",1)
+      params:set("notes start at 0",2)
       params:set("midi during rec",2)
       params:set("ensembler",2)
       params:set("voices",5)
       params:set("spread",15)
-      params:set("time spread",3)
-      params:set("notes vol",5)
-      params:set("min recorded",20)
+      params:set("time spread",1.5)
+      params:set("notes vol",0.5)
+      params:set("min recorded",10)
       s.armed=true
     end
   elseif n==2 then
