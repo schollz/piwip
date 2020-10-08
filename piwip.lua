@@ -1,4 +1,4 @@
--- piwip v0.2.0
+-- piwip v0.3.0
 -- play instruments
 -- while
 -- instruments play
@@ -76,8 +76,8 @@ function init()
   params:add_option("midi during rec","midi during rec",{"disabled","enabled"},1)
   params:set_action("midi during rec",update_parameters)
   
-  params:add_group("harmonizer",5)
-  params:add_taper("probability","probability",0,100,0,0,"%")
+  params:add_group("harmonizer",14)
+  params:add_taper("probability","probability",0,100,0,1,"%")
   params:set_action("probability",update_parameters)
   params:add{type="option",id="scale_mode",name="scale mode",
     options=s.scale_names,default=5,
@@ -89,6 +89,13 @@ function init()
   params:set_action("min length",update_parameters)
   params:add_control("max length","max length",controlspec.new(1,16,'lin',1,4,'beats'))
   params:set_action("max length",update_parameters)
+  params:add_option("specific notes","specific notes",{"disabled","enabled"},1)
+  params:set_action("specific notes",update_parameters)
+  for i=1,8 do
+    params:add{type="number",id="note"..i,name="note"..i,
+      min=0,max=127,default=0,formatter=function(param) return MusicUtil.note_num_to_name(param:get(),true) end,
+    action=function() build_scale();update_parameters() end}
+  end
   
   params:add_group("ensembler",4)
   params:add_option("ensembler","ensembler",{"off","on"},1)
@@ -278,12 +285,20 @@ function update_main()
       median_note=MusicUtil.freq_to_note_num(s.median_frequency)
       -- print("median_note "..median_note)
       -- print("s.median_frequency "..s.median_frequency)
-      for k,v in pairs(s.notes) do
-        
-        table.insert(available_notes,v)
-        -- if v<median_note then
-        --   table.insert(available_notes,v)
-        -- end
+      if params:get("specific notes")==2 then
+        for j=1,8 do
+          note=params:get("note"..j)
+          if note>0 then
+            table.insert(available_notes,note)
+          end
+        end
+      else
+        for k,v in pairs(s.notes) do
+          table.insert(available_notes,v)
+          -- if v<median_note then
+          --   table.insert(available_notes,v)
+          -- end
+        end
       end
       if #available_notes>0 then
         clock.run(function()
