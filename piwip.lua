@@ -1,4 +1,4 @@
--- piwip v0.2.0
+-- piwip v0.3.0
 -- play instruments
 -- while
 -- instruments play
@@ -38,6 +38,7 @@ s={
   ready=false,
   current_beat=0,
   current_note=0,
+  num_voices_playing=0,
 }
 
 -- constants
@@ -52,7 +53,7 @@ function init()
   params:set_action("resolution",update_parameters)
   params:add_control("rec thresh","rec thresh",controlspec.new(1,100,'exp',1,20,'amp/1k'))
   params:set_action("rec thresh",update_parameters)
-  params:add_taper("silence to stop","silence to stop",10,500,200,0,"ms")
+  params:add_taper("silence to stop","silence to stop",10,5000,200,0,"ms")
   params:set_action("silence to stop",update_parameters)
   params:add_control("vol pinch","vol pinch",controlspec.new(0,1000,'lin',1,500,'ms'))
   params:set_action("vol pinch",update_parameters)
@@ -75,8 +76,8 @@ function init()
   params:add_option("midi during rec","midi during rec",{"disabled","enabled"},1)
   params:set_action("midi during rec",update_parameters)
   
-  params:add_group("harmonizer",5)
-  params:add_taper("probability","probability",0,100,0,0,"%")
+  params:add_group("harmonizer",14)
+  params:add_taper("probability","probability",0,100,0,1,"%")
   params:set_action("probability",update_parameters)
   params:add{type="option",id="scale_mode",name="scale mode",
     options=s.scale_names,default=5,
@@ -88,6 +89,23 @@ function init()
   params:set_action("min length",update_parameters)
   params:add_control("max length","max length",controlspec.new(1,16,'lin',1,4,'beats'))
   params:set_action("max length",update_parameters)
+  params:add_option("specific notes","specific notes",{"disabled","enabled"},1)
+  params:set_action("specific notes",update_parameters)
+  for i=1,8 do
+    params:add{type="number",id="note"..i,name="note"..i,
+      min=0,max=127,default=0,formatter=function(param) return MusicUtil.note_num_to_name(param:get(),true) end,
+    action=function() build_scale();update_parameters() end}
+  end
+  
+  params:add_group("ensembler",4)
+  params:add_option("ensembler","ensembler",{"off","on"},1)
+  params:set_action("ensembler",update_parameters)
+  params:add_control("voices","voices",controlspec.new(1,5,'lin',1,5,''))
+  params:set_action("voices",update_parameters)
+  params:add_taper("spread","spread",0,100,0,0,"%/10")
+  params:set_action("spread",update_parameters)
+  params:add_taper("time spread","time spread",0,10,0,0,"s")
+  params:set_action("time spread",update_parameters)
   
   params:read(_path.data..'piwip/'.."piwip.pset")
   
@@ -172,8 +190,12 @@ function init()
   build_scale()
   
   clock.run(function()
+    print("sleeping")
     clock.sleep(0.5)
+    print("ready")
     s.ready=true
+    update_vol(params:get("notes vol"))
+    print("set volume")
   end)
 end
 
@@ -181,9 +203,16 @@ end
 -- updaters
 --
 function update_vol(x)
+  if s.ready==false then
+    do return end
+  end
   for i=2,6 do
     if s.v[i].midi>0 then
-      softcut.level(i,util.clamp(x*params:get("root_note")/s.v[i].midi,0,1))
+      if params:get("probability")>0 then
+        softcut.level(i,util.clamp(x*params:get("root_note")/s.v[i].midi,0,1))
+      else
+        softcut.level(i,util.clamp(x,0,1))
+      end
     end
   end
 end
@@ -226,6 +255,27 @@ function update_main()
   if s.update_ui then
     redraw()
   end
+  -- activate ensemble playing
+  if params:get("ensembler")==2 then
+    if s.recording and s.num_voices_playing<params:get("voices") then
+      print("s.num_voices_playing: "..s.num_voices_playing)
+      for i=0,params:get("voices")-1 do
+        clock.run(function()
+          local sleep_time=math.random()*params:get("time spread")
+          print("sleeping for "..sleep_time)
+          clock.sleep(sleep_time)
+          note_play(160) -- set arbitrary note
+        end)
+        s.num_voices_playing=s.num_voices_playing+1
+      end
+    elseif s.num_voices_playing>0 and s.recording==false then
+      for i=2,6 do
+        note_stop(160)
+      end
+      s.num_voices_playing=0
+    end
+  end
+  -- activate harmonizer
   if math.floor(clock.get_beats())~=s.current_beat and params:get("probability")>0 then
     -- randomize notes
     s.current_beat=math.floor(clock.get_beats())
@@ -235,19 +285,26 @@ function update_main()
       median_note=MusicUtil.freq_to_note_num(s.median_frequency)
       -- print("median_note "..median_note)
       -- print("s.median_frequency "..s.median_frequency)
-      for k,v in pairs(s.notes) do
-        
-        table.insert(available_notes,v)
-        -- if v<median_note then
-        --   table.insert(available_notes,v)
-        -- end
+      if params:get("specific notes")==2 then
+        for j=1,8 do
+          note=params:get("note"..j)
+          if note>0 then
+            table.insert(available_notes,note)
+          end
+        end
+      else
+        for k,v in pairs(s.notes) do
+          table.insert(available_notes,v)
+          -- if v<median_note then
+          --   table.insert(available_notes,v)
+          -- end
+        end
       end
       if #available_notes>0 then
         clock.run(function()
           local note=available_notes[math.random(#available_notes)]
           local num_beats=math.random(params:get("min length"),params:get("max length"))
           local played=note_play(note)
-          print(played)
           if played then
             print("playing "..note.." for "..num_beats.." beats")
             clock.sync(num_beats)
@@ -321,11 +378,13 @@ function update_main()
       end
       softcut.position(i,s.v[i].position)
       softcut.play(i,1)
-      update_vol(params:get("notes vol"))
+      softcut.level(i,params:get("notes vol"))
     end
     
     -- update the rate to match correctly modulate upcoming pitch
-    if s.v[i].ref_freq~=ref_freq and ref_freq~=nil then
+    if s.v[i].midi==160 then
+      softcut.rate(i,1+params:get("spread")/1000*2*(math.random()-0.5)) -- TODO: add modulation to the rates
+    elseif s.v[i].ref_freq~=ref_freq and ref_freq~=nil then
       s.v[i].ref_freq=ref_freq
       -- print("ref_freq: "..ref_freq)
       softcut.rate(i,s.v[i].freq/s.v[i].ref_freq)
@@ -439,8 +498,10 @@ function note_play(note)
   played=false
   if params:get("only play during rec")==2 and not s.recording then
     -- do nothing
+    print("can only play during rec: "..params:get("only play during rec"))
   elseif params:get("midi during rec")==1 and (s.recording or s.armed) then
     -- do nothing
+    print("midi not during rec")
   else
     -- try playing note
     for i=2,6 do
@@ -537,6 +598,22 @@ function enc(n,d)
       params:set("only play during rec",2)
       params:set("notes start at 0",1)
       params:set("midi during rec",2)
+      s.armed=true
+    elseif s.mode==3 then
+      s.mode_name="ensemble"
+      params:set("live follow",2)
+      params:set("keep armed",2)
+      params:set("silence to stop",500)
+      params:set("playback reference",1)
+      params:set("only play during rec",2)
+      params:set("notes start at 0",2)
+      params:set("midi during rec",2)
+      params:set("ensembler",2)
+      params:set("voices",5)
+      params:set("spread",15)
+      params:set("time spread",1.5)
+      params:set("notes vol",0.5)
+      params:set("min recorded",10)
       s.armed=true
     end
   elseif n==2 then
