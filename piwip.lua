@@ -98,8 +98,8 @@ function init()
   end
   
   params:add_group("ensembler",4)
-  params:add_option("ensembler","ensembler",{"off","on"},1)
-  params:set_action("ensembler",update_parameters)
+  params:add_option("ensembler_active","ensembler",{"off","on"},1)
+  params:set_action("ensembler_active",update_parameters)
   params:add_control("voices","voices",controlspec.new(1,5,'lin',1,5,''))
   params:set_action("voices",update_parameters)
   params:add_taper("spread","spread",0,100,0,0,"%/10")
@@ -256,7 +256,7 @@ function update_main()
     redraw()
   end
   -- activate ensemble playing
-  if params:get("ensembler")==2 then
+  if params:get("ensembler_active")==2 then
     if s.recording and s.num_voices_playing<params:get("voices") then
       print("s.num_voices_playing: "..s.num_voices_playing)
       for i=0,params:get("voices")-1 do
@@ -608,7 +608,7 @@ function enc(n,d)
       params:set("only play during rec",2)
       params:set("notes start at 0",2)
       params:set("midi during rec",2)
-      params:set("ensembler",2)
+      params:set("ensembler_active",2)
       params:set("voices",5)
       params:set("spread",15)
       params:set("time spread",1.5)
